@@ -14,14 +14,14 @@ import { UserRole } from '../enums/user-role.enum';
 @Index(['tenantId', 'email'], { unique: true })
 @Index(['tenantId', 'role', 'isActive'])
 export class User {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+  @PrimaryGeneratedColumn('increment', { type: 'int' })
   id: number;
 
   @Column({ type: 'uuid', unique: true, nullable: false })
   @Generated('uuid')
   publicId: string;
 
-  @Column({ type: 'bigint', nullable: false })
+  @Column({ type: 'int', nullable: false })
   tenantId: number;
 
   @Column({ type: 'varchar', length: 255, nullable: false })

@@ -91,7 +91,7 @@ export class UsersController {
   @Get(':id')
   @ApiOperation({
     summary: 'Get user by internal ID',
-    description: 'Retrieves a user by their internal bigint ID',
+    description: 'Retrieves a user by their internal ID',
   })
   @ApiParam({
     name: 'id',
