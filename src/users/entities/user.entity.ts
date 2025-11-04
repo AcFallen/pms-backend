@@ -15,7 +15,6 @@ import { Exclude } from 'class-transformer';
 
 @Entity('users')
 @Index(['tenantId', 'publicId'], { unique: true })
-@Index(['tenantId', 'email'], { unique: true })
 @Index(['tenantId', 'role', 'isActive'])
 export class User {
   @Exclude()
@@ -34,7 +33,7 @@ export class User {
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
 
-  @Column({ type: 'varchar', length: 255, nullable: false })
+  @Column({ type: 'varchar', length: 255, nullable: false, unique: true })
   email: string;
 
   @Exclude()

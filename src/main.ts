@@ -7,9 +7,13 @@ import {
   HttpExceptionFilter,
   AllExceptionsFilter,
 } from './common';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Get Reflector instance for guards
+  const reflector = app.get(Reflector);
 
   // Enable validation globally
   app.useGlobalPipes(
@@ -20,8 +24,11 @@ async function bootstrap() {
     }),
   );
 
+  // Apply JWT Auth Guard globally (protects all routes by default)
+  app.useGlobalGuards(new JwtAuthGuard(reflector));
+
   // Apply ClassSerializerInterceptor first to handle @Exclude decorators
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
   // Apply global interceptor to standardize successful responses
   app.useGlobalInterceptors(new TransformInterceptor());
@@ -35,8 +42,20 @@ async function bootstrap() {
     .setTitle('PMS API')
     .setDescription('Property Management System - Multi-tenant SaaS API')
     .setVersion('1.0')
+    .addTag('auth', 'Authentication endpoints')
     .addTag('users', 'User management endpoints')
-    .addBearerAuth()
+    .addTag('tenants', 'Tenant management endpoints')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
