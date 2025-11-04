@@ -195,3 +195,61 @@ All API responses follow a standardized format using global interceptors and exc
 - **AllExceptionsFilter**: Catches unexpected errors and logs them
 - Services and controllers return data directly - transformation is automatic
 - See [src/common/README.md](src/common/README.md) for detailed documentation
+
+## API Documentation (Swagger)
+
+Swagger/OpenAPI documentation is automatically generated and available at `/api/docs`.
+
+### Accessing Swagger UI
+- Start the application: `pnpm run start:dev`
+- Navigate to: `http://localhost:3000/api/docs`
+- Interactive API explorer with "Try it out" functionality
+
+### Configuration
+- Configured in [src/main.ts](src/main.ts) using `@nestjs/swagger`
+- Title: "PMS API"
+- Version: "1.0"
+- Bearer authentication configured (for future auth implementation)
+
+### Documenting New Endpoints
+
+When creating new modules, document them using Swagger decorators:
+
+#### Controller Documentation
+```typescript
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
+
+@ApiTags('resource-name')
+@Controller('resource')
+export class ResourceController {
+  @Get(':id')
+  @ApiOperation({ summary: 'Get resource by ID' })
+  @ApiParam({ name: 'id', type: Number })
+  @ApiResponse({ status: 200, type: Resource })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  findOne(@Param('id') id: string) { }
+}
+```
+
+#### DTO Documentation
+```typescript
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreateResourceDto {
+  @ApiProperty({
+    description: 'Field description',
+    example: 'example value',
+    required: true,
+  })
+  @IsString()
+  field: string;
+}
+```
+
+### Notes
+- **Entities (TypeORM)**: Do NOT add `@ApiProperty` decorators - keep them clean with only TypeORM decorators
+- **DTOs**: Always document with `@ApiProperty` decorators
+- Use `PartialType` from `@nestjs/swagger` (not `@nestjs/mapped-types`) for Update DTOs
+- Swagger automatically generates response schemas from controller return types
+- Controller `@ApiResponse({ type: Entity })` is optional - Swagger infers from service return type
+- Enums are documented with `enum` property in `@ApiProperty`
