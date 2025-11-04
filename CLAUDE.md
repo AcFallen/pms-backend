@@ -162,3 +162,36 @@ Global validation is enabled using `class-validator` and `class-transformer`:
   - `whitelist: true` - Strips non-whitelisted properties
   - `forbidNonWhitelisted: true` - Throws error for non-whitelisted properties
   - `transform: true` - Transforms payloads to DTO instances
+
+## API Response Standardization
+
+All API responses follow a standardized format using global interceptors and exception filters.
+
+### Successful Responses (2xx)
+```json
+{
+  "code": 200,
+  "status": "successful",
+  "data": { /* response data */ },
+  "timestamp": "2025-11-04T06:00:00.000Z"
+}
+```
+
+### Error Responses (4xx, 5xx)
+```json
+{
+  "code": 400,
+  "status": "error",
+  "message": "Error description",
+  "errors": ["validation error 1", "validation error 2"],
+  "timestamp": "2025-11-04T06:00:00.000Z",
+  "path": "/endpoint"
+}
+```
+
+### Implementation
+- **TransformInterceptor**: Automatically wraps successful responses
+- **HttpExceptionFilter**: Handles NestJS HTTP exceptions (404, 400, 409, etc.)
+- **AllExceptionsFilter**: Catches unexpected errors and logs them
+- Services and controllers return data directly - transformation is automatic
+- See [src/common/README.md](src/common/README.md) for detailed documentation
