@@ -153,6 +153,44 @@ constructor(
 - Each tenant-scoped entity should have indexes on `(tenantId, publicId)` and `(tenantId, email)` for uniqueness
 - Additional composite indexes based on query patterns
 
+### Database Seeding
+
+The project uses `typeorm-extension` for database seeding.
+
+#### Running Seeds
+```bash
+# Run all seeds (works in development, no build needed)
+pnpm run seed:run
+```
+
+#### Seed Structure
+- Seeds location: `src/database/seeds/`
+- Main seeder: [main.seeder.ts](src/database/seeds/main.seeder.ts)
+- Data source config: [data-source.ts](src/database/data-source.ts)
+
+#### Default Seeded Users
+The main seeder creates one user for each role:
+- `admin@example.com` - ADMIN role
+- `manager@example.com` - MANAGER role
+- `receptionist@example.com` - RECEPTIONIST role
+- `housekeeper@example.com` - HOUSEKEEPER role
+
+Default password for all: `password123`
+Default tenant ID: `1`
+
+#### Creating New Seeders
+```typescript
+import { DataSource } from 'typeorm';
+import { Seeder } from 'typeorm-extension';
+
+export default class MySeeder implements Seeder {
+  public async run(dataSource: DataSource): Promise<void> {
+    const repository = dataSource.getRepository(Entity);
+    // Seeding logic here
+  }
+}
+```
+
 ## Validation
 
 Global validation is enabled using `class-validator` and `class-transformer`:
