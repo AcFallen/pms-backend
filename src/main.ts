@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import {
   TransformInterceptor,
@@ -26,6 +27,27 @@ async function bootstrap() {
   // Order matters: more specific filters should come before general ones
   app.useGlobalFilters(new AllExceptionsFilter(), new HttpExceptionFilter());
 
-  await app.listen(process.env.PORT ?? 3000);
+  // Swagger configuration
+  const config = new DocumentBuilder()
+    .setTitle('PMS API')
+    .setDescription('Property Management System - Multi-tenant SaaS API')
+    .setVersion('1.0')
+    .addTag('users', 'User management endpoints')
+    .addBearerAuth()
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+  });
+
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port);
+  console.log(`Application is running on: http://localhost:${port}`);
+  console.log(`Swagger documentation: http://localhost:${port}/api/docs`);
 }
 bootstrap();
