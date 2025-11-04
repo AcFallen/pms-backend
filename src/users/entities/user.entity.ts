@@ -6,8 +6,11 @@ import {
   UpdateDateColumn,
   Index,
   Generated,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { UserRole } from '../enums/user-role.enum';
+import { Tenant } from '../../tenants/entities/tenant.entity';
 
 @Entity('users')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -23,6 +26,10 @@ export class User {
 
   @Column({ type: 'int', nullable: false })
   tenantId: number;
+
+  @ManyToOne(() => Tenant, (tenant) => tenant.users)
+  @JoinColumn({ name: 'tenantId' })
+  tenant: Tenant;
 
   @Column({ type: 'varchar', length: 255, nullable: false })
   email: string;
