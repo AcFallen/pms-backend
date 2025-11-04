@@ -306,11 +306,12 @@ JWT_EXPIRES_IN=1h
 
 1. Inicia la aplicación: `pnpm run start:dev`
 2. Ve a `http://localhost:3000/api/docs`
-3. Haz login en `POST /auth/login`
-4. Copia el `access_token` de la respuesta
-5. Click en **"Authorize"** (botón verde arriba a la derecha)
-6. Pega el token (sin "Bearer", solo el token)
-7. Ahora puedes probar todas las rutas protegidas
+3. **Identifica rutas protegidas**: Las rutas con 🔒 (candadito) requieren autenticación
+4. Haz login en `POST /auth/login` (sin candadito, es pública)
+5. Copia el `access_token` de la respuesta
+6. Click en **"Authorize"** (botón verde arriba a la derecha)
+7. Pega el token (sin "Bearer", solo el token)
+8. Ahora puedes probar todas las rutas protegidas (con 🔒)
 
 ---
 
