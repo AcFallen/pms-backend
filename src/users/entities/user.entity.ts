@@ -11,12 +11,14 @@ import {
 } from 'typeorm';
 import { UserRole } from '../enums/user-role.enum';
 import { Tenant } from '../../tenants/entities/tenant.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('users')
 @Index(['tenantId', 'publicId'], { unique: true })
 @Index(['tenantId', 'email'], { unique: true })
 @Index(['tenantId', 'role', 'isActive'])
 export class User {
+  @Exclude()
   @PrimaryGeneratedColumn('increment', { type: 'int' })
   id: number;
 
@@ -24,6 +26,7 @@ export class User {
   @Generated('uuid')
   publicId: string;
 
+  @Exclude()
   @Column({ type: 'int', nullable: false })
   tenantId: number;
 
@@ -34,6 +37,7 @@ export class User {
   @Column({ type: 'varchar', length: 255, nullable: false })
   email: string;
 
+  @Exclude()
   @Column({ type: 'varchar', length: 255, nullable: false })
   passwordHash: string;
 

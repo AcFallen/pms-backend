@@ -1,5 +1,5 @@
-import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { NestFactory, Reflector } from '@nestjs/core';
+import { ValidationPipe, ClassSerializerInterceptor } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import {
@@ -19,6 +19,9 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Apply ClassSerializerInterceptor first to handle @Exclude decorators
+  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
 
   // Apply global interceptor to standardize successful responses
   app.useGlobalInterceptors(new TransformInterceptor());

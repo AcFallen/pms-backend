@@ -11,6 +11,7 @@ import {
 import { TenantStatus } from '../enums/tenant-status.enum';
 import { TenantPlan } from '../enums/tenant-plan.enum';
 import { User } from '../../users/entities/user.entity';
+import { Exclude } from 'class-transformer';
 
 @Entity('tenants')
 @Index(['publicId'], { unique: true })
@@ -18,6 +19,7 @@ import { User } from '../../users/entities/user.entity';
 @Index(['status'])
 export class Tenant {
   @PrimaryGeneratedColumn('increment', { type: 'int' })
+  @Exclude()
   id: number;
 
   @Column({ type: 'uuid', unique: true, nullable: false })
