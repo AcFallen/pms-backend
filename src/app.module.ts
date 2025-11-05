@@ -12,6 +12,7 @@ import { RatesModule } from './rates/rates.module';
 import { GuestsModule } from './guests/guests.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { CleaningTasksModule } from './cleaning-tasks/cleaning-tasks.module';
+import { ProductCategoriesModule } from './product-categories/product-categories.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { CleaningTasksModule } from './cleaning-tasks/cleaning-tasks.module';
     GuestsModule,
     ReservationsModule,
     CleaningTasksModule,
+    ProductCategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
