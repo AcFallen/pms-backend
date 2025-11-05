@@ -16,7 +16,7 @@ export class FoliosService {
     private readonly folioRepository: Repository<Folio>,
   ) {}
 
-  async create(createFolioDto: CreateFolioDto): Promise<Folio> {
+  async create(createFolioDto: CreateFolioDto, tenantId: number): Promise<Folio> {
     // Check if folio number already exists
     const existingFolio = await this.folioRepository.findOne({
       where: { folioNumber: createFolioDto.folioNumber },
@@ -28,7 +28,10 @@ export class FoliosService {
       );
     }
 
-    const folio = this.folioRepository.create(createFolioDto);
+    const folio = this.folioRepository.create({
+      ...createFolioDto,
+      tenantId,
+    });
     return this.folioRepository.save(folio);
   }
 

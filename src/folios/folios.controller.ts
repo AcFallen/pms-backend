@@ -53,10 +53,7 @@ export class FoliosController {
     @Body() createFolioDto: CreateFolioDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.foliosService.create({
-      ...createFolioDto,
-      tenantId: user.tenantId,
-    });
+    return this.foliosService.create(createFolioDto, user.tenantId);
   }
 
   @Get()

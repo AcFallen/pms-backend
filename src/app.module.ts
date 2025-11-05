@@ -17,6 +17,7 @@ import { ProductsModule } from './products/products.module';
 import { FoliosModule } from './folios/folios.module';
 import { FolioChargesModule } from './folio-charges/folio-charges.module';
 import { PaymentsModule } from './payments/payments.module';
+import { InvoicesModule } from './invoices/invoices.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { PaymentsModule } from './payments/payments.module';
     FoliosModule,
     FolioChargesModule,
     PaymentsModule,
+    InvoicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -48,6 +48,7 @@ async function bootstrap() {
     .addTag('folios', 'Folio management endpoints')
     .addTag('folio-charges', 'Folio charge management endpoints')
     .addTag('payments', 'Payment management endpoints')
+    .addTag('invoices', 'Invoice management endpoints')
     .addTag('room-types', 'Room type management endpoints')
     .addTag('rooms', 'Room management endpoints')
     .addTag('rates', 'Rate management endpoints')
