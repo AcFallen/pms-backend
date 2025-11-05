@@ -14,6 +14,7 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { CleaningTasksModule } from './cleaning-tasks/cleaning-tasks.module';
 import { ProductCategoriesModule } from './product-categories/product-categories.module';
 import { ProductsModule } from './products/products.module';
+import { FoliosModule } from './folios/folios.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { ProductsModule } from './products/products.module';
     CleaningTasksModule,
     ProductCategoriesModule,
     ProductsModule,
+    FoliosModule,
   ],
   controllers: [AppController],
   providers: [AppService],

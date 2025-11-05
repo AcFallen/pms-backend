@@ -168,8 +168,9 @@ constructor(
 ```
 
 ### Database Indexes
-- Each tenant-scoped entity should have indexes on `(tenantId, publicId)` and `(tenantId, email)` for uniqueness
-- Additional composite indexes based on query patterns
+- Each tenant-scoped entity should have indexes on `(tenantId, publicId)` for uniqueness
+- **Email uniqueness**: In User entity, email has a global unique constraint (not per tenant)
+- Additional composite indexes based on query patterns (e.g., `(tenantId, role, isActive)` for Users)
 
 ### Database Seeding
 
@@ -222,57 +223,124 @@ Global validation is enabled using `class-validator` and `class-transformer`:
 
 ## Authentication & Authorization
 
-The application uses JWT-based authentication with Passport.js.
+The application uses **JWT-based authentication with Passport.js**. All routes are protected by default.
+
+### Key Concepts
+
+**Two Strategies:**
+1. **LocalStrategy** (`local.strategy.ts`): Validates email/password during login only
+2. **JwtStrategy** (`jwt.strategy.ts`): Validates JWT tokens on all protected routes
+
+**Three Guards:**
+1. **JwtAuthGuard**: Applied globally, protects all routes by default
+2. **LocalAuthGuard**: Used only on `/auth/login` endpoint
+3. **RolesGuard**: Validates user roles when using `@Roles()` decorator
 
 ### Authentication Flow
-1. **Login**: POST `/auth/login` with email and password
-2. **Response**: Returns JWT access token and user info
-3. **Protected Routes**: All routes require JWT token by default (via `JwtAuthGuard`)
-4. **Public Routes**: Use `@Public()` decorator to bypass authentication
+1. **Login**: POST `/auth/login` with `{ email, password }`
+   - LocalStrategy validates credentials against database
+   - Returns JWT access token and user info
+2. **Protected Routes**: Send JWT in `Authorization: Bearer <token>` header
+   - JwtStrategy validates token on every request
+   - Token payload includes: `userId`, `publicId`, `email`, `tenantId`, `role`
+3. **Public Routes**: Use `@Public()` decorator to bypass JWT validation
 
 ### Using Authentication
 
-#### Protect Routes (Default)
-All routes are protected by default. No decorator needed:
+#### All Routes Protected by Default
+No decorator needed - JwtAuthGuard is applied globally in [main.ts:28](src/main.ts#L28):
 ```typescript
 @Get('protected')
 findAll() {
-  // Requires JWT token
+  // Automatically requires JWT token
 }
 ```
 
-#### Public Routes
-Use `@Public()` decorator to allow unauthenticated access:
+#### Make Routes Public
+Use `@Public()` decorator to skip JWT validation:
 ```typescript
 import { Public } from '../auth/decorators/public.decorator';
 
 @Public()
-@Post('login')
-login(@Body() loginDto: LoginDto) {
-  // No JWT required
+@Get('health')
+healthCheck() {
+  return { status: 'ok' }; // No JWT required
 }
 ```
 
 #### Access Current User
-Use `@CurrentUser()` decorator to get the authenticated user:
+Use `@CurrentUser()` decorator to get authenticated user data:
 ```typescript
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @Get('profile')
-getProfile(@CurrentUser() user: any) {
-  return user; // { userId: number, email: string, role: string }
+getProfile(@CurrentUser() user: CurrentUserData) {
+  // user = { userId, publicId, email, tenantId, role }
+  return user;
+}
+
+// Get specific field
+@Get('my-email')
+getEmail(@CurrentUser('email') email: string) {
+  return { email };
+}
+```
+
+#### Restrict by Roles
+Use `@Roles()` decorator with `RolesGuard`:
+```typescript
+import { UseGuards } from '@nestjs/common';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
+
+// Only ADMIN can access
+@UseGuards(RolesGuard)
+@Roles(UserRole.ADMIN)
+@Delete(':id')
+deleteUser(@Param('id') id: string) {
+  // Only accessible to ADMIN
+}
+
+// ADMIN or MANAGER can access
+@UseGuards(RolesGuard)
+@Roles(UserRole.ADMIN, UserRole.MANAGER)
+@Get('reports')
+getReports() {
+  // Accessible to ADMIN or MANAGER
 }
 ```
 
 ### JWT Configuration
-- Secret key: `JWT_SECRET` in `.env`
-- Expiration: `JWT_EXPIRATION` in `.env` (default: 7d)
-- Strategy: Passport JWT with Bearer token
+Environment variables in `.env`:
+- `JWT_SECRET`: Secret key for signing tokens (change in production!)
+- `JWT_EXPIRES_IN`: Token expiration (default: `1h`, can be `15m`, `7d`, etc.)
+
+JWT Token Payload:
+```typescript
+{
+  sub: number;        // user.id (internal)
+  publicId: string;   // user.publicId (UUID)
+  email: string;      // user.email
+  tenantId: number;   // tenant ID for multi-tenancy
+  role: string;       // UserRole (ADMIN, MANAGER, etc.)
+  iat: number;        // Issued at timestamp
+  exp: number;        // Expiration timestamp
+}
+```
 
 ### Swagger Integration
-- Protected endpoints show a lock icon in Swagger UI
-- Use "Authorize" button in Swagger to add Bearer token
-- All controllers with `@ApiBearerAuth('JWT-auth')` require authentication
+- **Lock icon 🔒**: Routes with `@ApiBearerAuth('JWT-auth')` show a lock icon
+- **Authorize button**: Click green "Authorize" button in Swagger UI
+- **Testing**: Login → Copy `access_token` → Authorize → Test protected routes
+- **Controller-level**: Add `@ApiBearerAuth('JWT-auth')` at controller class level to protect all routes
+
+### Important Notes
+- **Email is unique globally** (not per tenant) - users cannot share emails across tenants
+- **Passwords**: Hashed with bcrypt (10 rounds)
+- **User status**: Inactive users (`isActive: false`) cannot login
+- **lastLoginAt**: Automatically updated on successful login
+- See [src/auth/README.md](src/auth/README.md) for detailed authentication documentation
 
 ## API Response Standardization
 
@@ -369,22 +437,71 @@ export class CreateResourceDto {
 ## Existing Modules
 
 ### Auth Module (`src/auth/`)
-Handles authentication and authorization.
-- **Endpoints**: `/auth/login`, `/auth/register`
-- **Features**: JWT token generation, password hashing (bcrypt), Passport.js integration
-- **Decorators**: `@Public()`, `@CurrentUser()`
-- **Guards**: `JwtAuthGuard` (applied globally)
+Handles authentication and authorization using JWT with Passport.js.
+
+**Structure:**
+- `strategies/` - LocalStrategy (login) and JwtStrategy (token validation)
+- `guards/` - JwtAuthGuard (global), LocalAuthGuard (login), RolesGuard (authorization)
+- `decorators/` - `@Public()`, `@CurrentUser()`, `@Roles()`
+- `dto/` - LoginDto, LoginResponseDto
+
+**Endpoints:**
+- `POST /auth/login` - Login with email/password (public route)
+- `GET /auth/profile` - Get current user profile (protected)
+
+**Features:**
+- JWT token generation with 1-hour expiration
+- Password hashing with bcrypt (10 rounds)
+- Global route protection (all routes require JWT by default)
+- Multi-tenant support (tenantId in JWT payload)
+- Role-based access control
+
+**Key Files:**
+- [auth.service.ts](src/auth/auth.service.ts) - Authentication logic
+- [jwt.strategy.ts](src/auth/strategies/jwt.strategy.ts) - JWT token validation
+- [local.strategy.ts](src/auth/strategies/local.strategy.ts) - Login credentials validation
+- [README.md](src/auth/README.md) - Detailed authentication documentation
 
 ### Users Module (`src/users/`)
-Multi-tenant user management.
-- **Endpoints**: `/users` (CRUD operations)
-- **Features**: User roles (ADMIN, MANAGER, RECEPTIONIST, HOUSEKEEPER), email uniqueness per tenant
-- **Relations**: `User` belongs to `Tenant` (ManyToOne)
-- **Enums**: `UserRole` for role-based access
+Multi-tenant user management with role-based access.
+
+**Endpoints:** `/users` (full CRUD operations)
+
+**Features:**
+- User roles: ADMIN, MANAGER, RECEPTIONIST, HOUSEKEEPER
+- Email uniqueness **globally** (not per tenant)
+- Password hashing on creation/update
+- Dual ID system (internal `id` + public `publicId`)
+- `lastLoginAt` tracking
+
+**Relations:**
+- `User` belongs to `Tenant` (ManyToOne)
+- Tenant relation excluded from default queries for performance
+
+**Enums:**
+- `UserRole` - Role-based access control
+
+**Important:**
+- Passwords stored as `passwordHash` (excluded from API responses)
+- Internal IDs (`id`, `tenantId`) excluded from API responses
+- Use `publicId` for external API references
 
 ### Tenants Module (`src/tenants/`)
-Organization/tenant management.
-- **Endpoints**: `/tenants` (CRUD operations)
-- **Features**: RUC validation (unique), tenant status (active/suspended/cancelled), subscription plans
-- **Relations**: `Tenant` has many `Users` (OneToMany)
-- **Enums**: `TenantStatus`, `TenantPlan`
+Organization/tenant management for multi-tenancy.
+
+**Endpoints:** `/tenants` (full CRUD operations)
+
+**Features:**
+- RUC validation (unique, optional)
+- Tenant status: ACTIVE, SUSPENDED, CANCELLED
+- Subscription plans: BASICO, STANDARD, PREMIUM
+- Room capacity limits (`maxRooms`)
+- Dual ID system (internal `id` + public `publicId`)
+
+**Relations:**
+- `Tenant` has many `Users` (OneToMany)
+- Users relation not auto-loaded for performance
+
+**Enums:**
+- `TenantStatus` - Tenant account status
+- `TenantPlan` - Subscription tier
