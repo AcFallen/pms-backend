@@ -15,6 +15,8 @@ import { CleaningTasksModule } from './cleaning-tasks/cleaning-tasks.module';
 import { ProductCategoriesModule } from './product-categories/product-categories.module';
 import { ProductsModule } from './products/products.module';
 import { FoliosModule } from './folios/folios.module';
+import { FolioChargesModule } from './folio-charges/folio-charges.module';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -49,6 +51,8 @@ import { FoliosModule } from './folios/folios.module';
     ProductCategoriesModule,
     ProductsModule,
     FoliosModule,
+    FolioChargesModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
