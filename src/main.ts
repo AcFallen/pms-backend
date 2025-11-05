@@ -24,6 +24,8 @@ async function bootstrap() {
     }),
   );
 
+  app.enableCors();
+
   // Apply JWT Auth Guard globally (protects all routes by default)
   app.useGlobalGuards(new JwtAuthGuard(reflector));
 
