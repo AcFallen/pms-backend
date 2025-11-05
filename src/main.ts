@@ -49,6 +49,7 @@ async function bootstrap() {
     .addTag('rooms', 'Room management endpoints')
     .addTag('rates', 'Rate management endpoints')
     .addTag('guests', 'Guest management endpoints')
+    .addTag('reservations', 'Reservation management endpoints')
     .addBearerAuth(
       {
         type: 'http',
