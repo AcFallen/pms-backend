@@ -46,6 +46,7 @@ async function bootstrap() {
     .addTag('users', 'User management endpoints')
     .addTag('tenants', 'Tenant management endpoints')
     .addTag('room-types', 'Room type management endpoints')
+    .addTag('rooms', 'Room management endpoints')
     .addBearerAuth(
       {
         type: 'http',

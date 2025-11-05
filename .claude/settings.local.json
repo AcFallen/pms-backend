@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(nest g res:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
