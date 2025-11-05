@@ -11,6 +11,7 @@ import { RoomsModule } from './rooms/rooms.module';
 import { RatesModule } from './rates/rates.module';
 import { GuestsModule } from './guests/guests.module';
 import { ReservationsModule } from './reservations/reservations.module';
+import { CleaningTasksModule } from './cleaning-tasks/cleaning-tasks.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ReservationsModule } from './reservations/reservations.module';
     RatesModule,
     GuestsModule,
     ReservationsModule,
+    CleaningTasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
