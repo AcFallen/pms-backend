@@ -8,6 +8,7 @@ import { TenantsModule } from './tenants/tenants.module';
 import { AuthModule } from './auth/auth.module';
 import { RoomTypesModule } from './room-types/room-types.module';
 import { RoomsModule } from './rooms/rooms.module';
+import { RatesModule } from './rates/rates.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { RoomsModule } from './rooms/rooms.module';
     AuthModule,
     RoomTypesModule,
     RoomsModule,
+    RatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
