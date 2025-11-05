@@ -9,8 +9,13 @@ This is a NestJS backend application for a PMS (Property Management System). Thi
 ### Key Architecture Decisions
 - **Multi-tenant Design**: Each entity is scoped to a tenant using `tenantId`
 - **Dual ID System**: Entities use both integer IDs (primary key) and UUIDs (public_id) for external references
+  - Internal IDs (`int` type) for database relations and joins
+  - Public IDs (UUID) for external API references
+  - Internal IDs are hidden from API responses using `@Exclude()`
 - **TypeORM**: Database ORM with entity-first approach
 - **Class Validator**: DTO validation with decorators
+- **JWT Authentication**: Passport.js with JWT strategy for authentication
+- **Security**: Sensitive fields excluded from API responses using `ClassSerializerInterceptor`
 
 ## Package Manager
 
@@ -51,9 +56,12 @@ This project uses **pnpm** as the package manager, not npm or yarn. Always use `
 
 ### Current Structure
 - `src/app.module.ts` - Root module that imports all feature modules
-- `src/app.controller.ts` - Root controller with basic routes
-- `src/app.service.ts` - Root service with business logic
-- `src/main.ts` - Application entry point (defaults to port 3000, or `process.env.PORT`)
+- `src/main.ts` - Application entry point with global pipes, guards, interceptors, and filters
+- `src/common/` - Shared utilities (interceptors, filters, interfaces)
+- `src/auth/` - Authentication module (JWT, Passport.js)
+- `src/users/` - User management module (multi-tenant)
+- `src/tenants/` - Tenant management module (organizations)
+- `src/database/` - Database configuration and seeders
 
 ### Adding New Features
 When adding new features, use the NestJS CLI to generate modules, controllers, and services:
@@ -119,17 +127,21 @@ The project uses PostgreSQL 16 running in Docker:
 ### Entity Pattern (Multi-tenant with Dual IDs)
 All entities follow this pattern:
 ```typescript
+import { Exclude } from 'class-transformer';
+
 @Entity('table_name')
 @Index(['tenantId', 'publicId'], { unique: true })
 export class EntityName {
-  @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-  id: number;  // Internal integer ID
+  @Exclude()  // Hide internal ID from API responses
+  @PrimaryGeneratedColumn('increment', { type: 'int' })
+  id: number;  // Internal integer ID (for database relations)
 
   @Column({ type: 'uuid', unique: true })
   @Generated('uuid')
   publicId: string;  // Public UUID for external references
 
-  @Column({ type: 'bigint', nullable: false })
+  @Exclude()  // Hide tenantId from API responses (if not needed)
+  @Column({ type: 'int', nullable: false })
   tenantId: number;  // Multi-tenant scoping
 
   @CreateDateColumn({ type: 'timestamp' })
@@ -139,6 +151,12 @@ export class EntityName {
   updatedAt: Date;
 }
 ```
+
+**Important Notes:**
+- Use `int` for IDs (not `bigint`) - sufficient for most use cases and avoids JSON serialization issues
+- Use `@Exclude()` from `class-transformer` to hide sensitive/internal fields from API responses
+- Always exclude: `id` (internal), `tenantId` (internal), `passwordHash`, and relations that shouldn't be auto-loaded
+- The `ClassSerializerInterceptor` in [main.ts](src/main.ts) processes `@Exclude()` decorators
 
 ### Working with Repositories
 Services inject TypeORM repositories:
@@ -168,15 +186,16 @@ pnpm run seed:run
 - Main seeder: [main.seeder.ts](src/database/seeds/main.seeder.ts)
 - Data source config: [data-source.ts](src/database/data-source.ts)
 
-#### Default Seeded Users
-The main seeder creates one user for each role:
-- `admin@example.com` - ADMIN role
-- `manager@example.com` - MANAGER role
-- `receptionist@example.com` - RECEPTIONIST role
-- `housekeeper@example.com` - HOUSEKEEPER role
+#### Default Seeded Data
+The main seeder creates:
+1. **One default tenant**: "Demo Hotel" (ID: 1)
+2. **Four users** (one per role):
+   - `admin@example.com` - ADMIN role
+   - `manager@example.com` - MANAGER role
+   - `receptionist@example.com` - RECEPTIONIST role
+   - `housekeeper@example.com` - HOUSEKEEPER role
 
-Default password for all: `password123`
-Default tenant ID: `1`
+Default password for all users: `password123`
 
 #### Creating New Seeders
 ```typescript
@@ -200,6 +219,60 @@ Global validation is enabled using `class-validator` and `class-transformer`:
   - `whitelist: true` - Strips non-whitelisted properties
   - `forbidNonWhitelisted: true` - Throws error for non-whitelisted properties
   - `transform: true` - Transforms payloads to DTO instances
+
+## Authentication & Authorization
+
+The application uses JWT-based authentication with Passport.js.
+
+### Authentication Flow
+1. **Login**: POST `/auth/login` with email and password
+2. **Response**: Returns JWT access token and user info
+3. **Protected Routes**: All routes require JWT token by default (via `JwtAuthGuard`)
+4. **Public Routes**: Use `@Public()` decorator to bypass authentication
+
+### Using Authentication
+
+#### Protect Routes (Default)
+All routes are protected by default. No decorator needed:
+```typescript
+@Get('protected')
+findAll() {
+  // Requires JWT token
+}
+```
+
+#### Public Routes
+Use `@Public()` decorator to allow unauthenticated access:
+```typescript
+import { Public } from '../auth/decorators/public.decorator';
+
+@Public()
+@Post('login')
+login(@Body() loginDto: LoginDto) {
+  // No JWT required
+}
+```
+
+#### Access Current User
+Use `@CurrentUser()` decorator to get the authenticated user:
+```typescript
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+
+@Get('profile')
+getProfile(@CurrentUser() user: any) {
+  return user; // { userId: number, email: string, role: string }
+}
+```
+
+### JWT Configuration
+- Secret key: `JWT_SECRET` in `.env`
+- Expiration: `JWT_EXPIRATION` in `.env` (default: 7d)
+- Strategy: Passport JWT with Bearer token
+
+### Swagger Integration
+- Protected endpoints show a lock icon in Swagger UI
+- Use "Authorize" button in Swagger to add Bearer token
+- All controllers with `@ApiBearerAuth('JWT-auth')` require authentication
 
 ## API Response Standardization
 
@@ -247,7 +320,8 @@ Swagger/OpenAPI documentation is automatically generated and available at `/api/
 - Configured in [src/main.ts](src/main.ts) using `@nestjs/swagger`
 - Title: "PMS API"
 - Version: "1.0"
-- Bearer authentication configured (for future auth implementation)
+- Bearer authentication configured with JWT
+- Available tags: `auth`, `users`, `tenants`
 
 ### Documenting New Endpoints
 
@@ -291,3 +365,26 @@ export class CreateResourceDto {
 - Swagger automatically generates response schemas from controller return types
 - Controller `@ApiResponse({ type: Entity })` is optional - Swagger infers from service return type
 - Enums are documented with `enum` property in `@ApiProperty`
+
+## Existing Modules
+
+### Auth Module (`src/auth/`)
+Handles authentication and authorization.
+- **Endpoints**: `/auth/login`, `/auth/register`
+- **Features**: JWT token generation, password hashing (bcrypt), Passport.js integration
+- **Decorators**: `@Public()`, `@CurrentUser()`
+- **Guards**: `JwtAuthGuard` (applied globally)
+
+### Users Module (`src/users/`)
+Multi-tenant user management.
+- **Endpoints**: `/users` (CRUD operations)
+- **Features**: User roles (ADMIN, MANAGER, RECEPTIONIST, HOUSEKEEPER), email uniqueness per tenant
+- **Relations**: `User` belongs to `Tenant` (ManyToOne)
+- **Enums**: `UserRole` for role-based access
+
+### Tenants Module (`src/tenants/`)
+Organization/tenant management.
+- **Endpoints**: `/tenants` (CRUD operations)
+- **Features**: RUC validation (unique), tenant status (active/suspended/cancelled), subscription plans
+- **Relations**: `Tenant` has many `Users` (OneToMany)
+- **Enums**: `TenantStatus`, `TenantPlan`
