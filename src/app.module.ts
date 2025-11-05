@@ -13,6 +13,7 @@ import { GuestsModule } from './guests/guests.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { CleaningTasksModule } from './cleaning-tasks/cleaning-tasks.module';
 import { ProductCategoriesModule } from './product-categories/product-categories.module';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { ProductCategoriesModule } from './product-categories/product-categories
     ReservationsModule,
     CleaningTasksModule,
     ProductCategoriesModule,
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
