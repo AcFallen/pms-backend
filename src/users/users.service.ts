@@ -17,12 +17,9 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto, tenantId: number): Promise<User> {
     // Check if user already exists
-    const existingUser = await this.findByEmail(
-      createUserDto.email,
-      createUserDto.tenantId,
-    );
+    const existingUser = await this.findByEmail(createUserDto.email, tenantId);
     if (existingUser) {
       throw new ConflictException(
         'User with this email already exists for this tenant',
@@ -37,6 +34,7 @@ export class UsersService {
     const { password, ...userData } = createUserDto;
     const user = this.userRepository.create({
       ...userData,
+      tenantId,
       passwordHash,
     });
 
@@ -45,6 +43,13 @@ export class UsersService {
 
   async findAll(): Promise<User[]> {
     return await this.userRepository.find();
+  }
+
+  async findAllByTenant(tenantId: number): Promise<User[]> {
+    return await this.userRepository.find({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async findOne(id: number): Promise<User> {
@@ -69,14 +74,42 @@ export class UsersService {
     });
   }
 
-  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
-    const user = await this.findOne(id);
-    Object.assign(user, updateUserDto);
+  async updateByPublicId(publicId: string, updateUserDto: UpdateUserDto): Promise<User> {
+    const user = await this.findByPublicId(publicId);
+
+    // If updating password, hash it
+    if (updateUserDto.password) {
+      const saltRounds = 10;
+      const passwordHash = await bcrypt.hash(updateUserDto.password, saltRounds);
+      const { password, ...userData } = updateUserDto;
+      Object.assign(user, { ...userData, passwordHash });
+    } else {
+      Object.assign(user, updateUserDto);
+    }
+
     return await this.userRepository.save(user);
   }
 
-  async remove(id: number): Promise<void> {
-    const user = await this.findOne(id);
-    await this.userRepository.remove(user);
+  async removeByPublicId(publicId: string): Promise<void> {
+    const user = await this.findByPublicId(publicId);
+    await this.userRepository.softRemove(user);
+  }
+
+  async restoreByPublicId(publicId: string): Promise<User> {
+    const user = await this.userRepository.findOne({
+      where: { publicId },
+      withDeleted: true,
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with public ID ${publicId} not found`);
+    }
+
+    if (!user.deletedAt) {
+      throw new ConflictException('User is not deleted');
+    }
+
+    await this.userRepository.restore({ publicId });
+    return this.findByPublicId(publicId);
   }
 }

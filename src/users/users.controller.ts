@@ -21,6 +21,9 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from './enums/user-role.enum';
 
 @ApiTags('users')
 @ApiBearerAuth('JWT-auth')
@@ -32,7 +35,7 @@ export class UsersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new user',
-    description: 'Creates a new user with hashed password for the specified tenant',
+    description: 'Creates a new user with hashed password for the current tenant',
   })
   @ApiBody({ type: CreateUserDto })
   @ApiResponse({
@@ -48,25 +51,47 @@ export class UsersController {
     status: 409,
     description: 'User with this email already exists for this tenant',
   })
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  create(
+    @Body() createUserDto: CreateUserDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.usersService.create(createUserDto, user.tenantId);
   }
 
   @Get()
   @ApiOperation({
-    summary: 'Get all users',
-    description: 'Retrieves a list of all users in the system',
+    summary: 'Get all users for current tenant',
+    description: 'Retrieves a list of all users for the current tenant',
   })
   @ApiResponse({
     status: 200,
     description: 'List of users retrieved successfully',
     type: [User],
   })
+  findAllByTenant(@CurrentUser() user: CurrentUserData) {
+    return this.usersService.findAllByTenant(user.tenantId);
+  }
+
+  @Get('all')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Get all users (Admin only)',
+    description: 'Retrieves a list of ALL users across all tenants. Only accessible by ADMIN role.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of all users retrieved successfully',
+    type: [User],
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
   findAll() {
     return this.usersService.findAll();
   }
 
-  @Get('public/:publicId')
+  @Get(':publicId')
   @ApiOperation({
     summary: 'Get user by public ID',
     description: 'Retrieves a user by their public UUID',
@@ -90,40 +115,16 @@ export class UsersController {
     return this.usersService.findByPublicId(publicId);
   }
 
-  @Get(':id')
+  @Patch(':publicId')
   @ApiOperation({
-    summary: 'Get user by internal ID',
-    description: 'Retrieves a user by their internal ID',
+    summary: 'Update user by public ID',
+    description: 'Updates user information by their public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the user',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'User found',
-    type: User,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User not found',
-  })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update user',
-    description: 'Updates user information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the user',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the user',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiBody({ type: UpdateUserDto })
   @ApiResponse({
@@ -139,31 +140,64 @@ export class UsersController {
     status: 404,
     description: 'User not found',
   })
-  update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
+  update(@Param('publicId') publicId: string, @Body() updateUserDto: UpdateUserDto) {
+    return this.usersService.updateByPublicId(publicId, updateUserDto);
   }
 
-  @Delete(':id')
+  @Delete(':publicId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Delete user',
-    description: 'Deletes a user by internal ID',
+    summary: 'Delete user by public ID (Soft Delete)',
+    description: 'Soft deletes a user by their public UUID. User can be restored later.',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the user',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the user',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiResponse({
     status: 200,
-    description: 'User successfully deleted',
+    description: 'User successfully deleted (soft delete)',
   })
   @ApiResponse({
     status: 404,
     description: 'User not found',
   })
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(+id);
+  remove(@Param('publicId') publicId: string) {
+    return this.usersService.removeByPublicId(publicId);
+  }
+
+  @Patch(':publicId/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Restore deleted user (Admin only)',
+    description: 'Restores a soft-deleted user by their public UUID. Only accessible by ADMIN role.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the user',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully restored',
+    type: User,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'User is not deleted',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  restore(@Param('publicId') publicId: string) {
+    return this.usersService.restoreByPublicId(publicId);
   }
 }

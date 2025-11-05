@@ -1,17 +1,8 @@
-import { IsEmail, IsString, IsNotEmpty, MinLength, MaxLength, IsNumber, IsBoolean, IsOptional, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, MinLength, MaxLength, IsBoolean, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from '../enums/user-role.enum';
 
 export class CreateUserDto {
-  @ApiProperty({
-    description: 'Tenant ID for multi-tenant isolation',
-    example: 1,
-    type: Number,
-  })
-  @IsNumber()
-  @IsNotEmpty()
-  tenantId: number;
-
   @ApiProperty({
     description: 'User email address (unique per tenant)',
     example: 'john.doe@example.com',

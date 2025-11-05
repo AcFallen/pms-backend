@@ -27,6 +27,10 @@ async function bootstrap() {
   // Apply JWT Auth Guard globally (protects all routes by default)
   app.useGlobalGuards(new JwtAuthGuard(reflector));
 
+  // Apply Roles Guard globally (for role-based authorization)
+  const RolesGuard = require('./auth/guards/roles.guard').RolesGuard;
+  app.useGlobalGuards(new RolesGuard(reflector));
+
   // Apply ClassSerializerInterceptor first to handle @Exclude decorators
   app.useGlobalInterceptors(new ClassSerializerInterceptor(reflector));
 
