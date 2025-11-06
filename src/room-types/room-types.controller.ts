@@ -21,7 +21,9 @@ import { RoomTypesService } from './room-types.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 import { RoomType } from './entities/room-type.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
 
 @ApiTags('room-types')
 @ApiBearerAuth('JWT-auth')
@@ -45,7 +47,7 @@ export class RoomTypesController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createRoomTypeDto: CreateRoomTypeDto, @CurrentUser() user: any) {
+  create(@Body() createRoomTypeDto: CreateRoomTypeDto, @CurrentUser() user: CurrentUserData) {
     return this.roomTypesService.create(createRoomTypeDto, user.tenantId);
   }
 
@@ -59,11 +61,11 @@ export class RoomTypesController {
     description: 'List of room types retrieved successfully',
     type: [RoomType],
   })
-  findAll(@CurrentUser() user: any) {
+  findAll(@CurrentUser() user: CurrentUserData) {
     return this.roomTypesService.findAll(user.tenantId);
   }
 
-  @Get('public/:publicId')
+  @Get(':publicId')
   @ApiOperation({
     summary: 'Get room type by public ID',
     description: 'Retrieves a room type by its public UUID',
@@ -83,44 +85,20 @@ export class RoomTypesController {
     status: 404,
     description: 'Room type not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
     return this.roomTypesService.findByPublicId(publicId, user.tenantId);
   }
 
-  @Get(':id')
+  @Patch(':publicId')
   @ApiOperation({
-    summary: 'Get room type by internal ID',
-    description: 'Retrieves a room type by its internal ID',
+    summary: 'Update room type by public ID',
+    description: 'Updates room type information by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the room type',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Room type found',
-    type: RoomType,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Room type not found',
-  })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.roomTypesService.findOne(+id, user.tenantId);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update room type',
-    description: 'Updates room type information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the room type',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the room type',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiBody({ type: UpdateRoomTypeDto })
   @ApiResponse({
@@ -137,34 +115,67 @@ export class RoomTypesController {
     description: 'Room type not found',
   })
   update(
-    @Param('id') id: string,
+    @Param('publicId') publicId: string,
     @Body() updateRoomTypeDto: UpdateRoomTypeDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.roomTypesService.update(+id, updateRoomTypeDto, user.tenantId);
+    return this.roomTypesService.updateByPublicId(publicId, updateRoomTypeDto, user.tenantId);
   }
 
-  @Delete(':id')
+  @Delete(':publicId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Delete room type (soft delete)',
-    description: 'Soft deletes a room type by internal ID',
+    summary: 'Delete room type by public ID (soft delete)',
+    description: 'Soft deletes a room type by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the room type',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the room type',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiResponse({
     status: 200,
-    description: 'Room type successfully deleted',
+    description: 'Room type successfully deleted (soft delete)',
   })
   @ApiResponse({
     status: 404,
     description: 'Room type not found',
   })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.roomTypesService.remove(+id, user.tenantId);
+  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.roomTypesService.removeByPublicId(publicId, user.tenantId);
+  }
+
+  @Patch(':publicId/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Restore deleted room type (Admin only)',
+    description: 'Restores a soft-deleted room type by public UUID. Only accessible by ADMIN role.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the room type',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Room type successfully restored',
+    type: RoomType,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Room type not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Room type is not deleted',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.roomTypesService.restoreByPublicId(publicId, user.tenantId);
   }
 }

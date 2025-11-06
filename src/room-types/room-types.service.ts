@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
@@ -47,14 +47,32 @@ export class RoomTypesService {
     return roomType;
   }
 
-  async update(id: number, updateRoomTypeDto: UpdateRoomTypeDto, tenantId: number): Promise<RoomType> {
-    const roomType = await this.findOne(id, tenantId);
+  async updateByPublicId(publicId: string, updateRoomTypeDto: UpdateRoomTypeDto, tenantId: number): Promise<RoomType> {
+    const roomType = await this.findByPublicId(publicId, tenantId);
     Object.assign(roomType, updateRoomTypeDto);
     return await this.roomTypeRepository.save(roomType);
   }
 
-  async remove(id: number, tenantId: number): Promise<void> {
-    const roomType = await this.findOne(id, tenantId);
+  async removeByPublicId(publicId: string, tenantId: number): Promise<void> {
+    const roomType = await this.findByPublicId(publicId, tenantId);
     await this.roomTypeRepository.softRemove(roomType);
+  }
+
+  async restoreByPublicId(publicId: string, tenantId: number): Promise<RoomType> {
+    const roomType = await this.roomTypeRepository.findOne({
+      where: { publicId, tenantId },
+      withDeleted: true,
+    });
+
+    if (!roomType) {
+      throw new NotFoundException(`Room type with public ID ${publicId} not found`);
+    }
+
+    if (!roomType.deletedAt) {
+      throw new ConflictException('Room type is not deleted');
+    }
+
+    await this.roomTypeRepository.restore({ publicId });
+    return this.findByPublicId(publicId, tenantId);
   }
 }
