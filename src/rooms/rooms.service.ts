@@ -4,15 +4,26 @@ import { Repository } from 'typeorm';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { Room } from './entities/room.entity';
+import { RoomType } from '../room-types/entities/room-type.entity';
 
 @Injectable()
 export class RoomsService {
   constructor(
     @InjectRepository(Room)
     private readonly roomRepository: Repository<Room>,
+    @InjectRepository(RoomType)
+    private readonly roomTypeRepository: Repository<RoomType>,
   ) {}
 
   async create(createRoomDto: CreateRoomDto, tenantId: number): Promise<Room> {
+    // Find room type by public ID
+    const roomType = await this.roomTypeRepository.findOne({
+      where: { publicId: createRoomDto.roomTypePublicId, tenantId },
+    });
+    if (!roomType) {
+      throw new NotFoundException('Room type not found');
+    }
+
     // Check if room number already exists for this tenant
     const existingRoom = await this.roomRepository.findOne({
       where: { roomNumber: createRoomDto.roomNumber, tenantId },
@@ -21,8 +32,11 @@ export class RoomsService {
       throw new ConflictException('Room number already exists for this tenant');
     }
 
+    // Create room with internal roomTypeId
+    const { roomTypePublicId, ...roomData } = createRoomDto;
     const room = this.roomRepository.create({
-      ...createRoomDto,
+      ...roomData,
+      roomTypeId: roomType.id,
       tenantId,
     });
     return await this.roomRepository.save(room);
@@ -58,8 +72,19 @@ export class RoomsService {
     return room;
   }
 
-  async update(id: number, updateRoomDto: UpdateRoomDto, tenantId: number): Promise<Room> {
-    const room = await this.findOne(id, tenantId);
+  async updateByPublicId(publicId: string, updateRoomDto: UpdateRoomDto, tenantId: number): Promise<Room> {
+    const room = await this.findByPublicId(publicId, tenantId);
+
+    // If room type is being updated, find it by public ID
+    if (updateRoomDto.roomTypePublicId) {
+      const roomType = await this.roomTypeRepository.findOne({
+        where: { publicId: updateRoomDto.roomTypePublicId, tenantId },
+      });
+      if (!roomType) {
+        throw new NotFoundException('Room type not found');
+      }
+      room.roomTypeId = roomType.id;
+    }
 
     // Check if room number is being updated and if it already exists
     if (updateRoomDto.roomNumber && updateRoomDto.roomNumber !== room.roomNumber) {
@@ -71,12 +96,32 @@ export class RoomsService {
       }
     }
 
-    Object.assign(room, updateRoomDto);
+    // Update other fields (excluding roomTypePublicId as we already handled it)
+    const { roomTypePublicId, ...updateData } = updateRoomDto;
+    Object.assign(room, updateData);
     return await this.roomRepository.save(room);
   }
 
-  async remove(id: number, tenantId: number): Promise<void> {
-    const room = await this.findOne(id, tenantId);
+  async removeByPublicId(publicId: string, tenantId: number): Promise<void> {
+    const room = await this.findByPublicId(publicId, tenantId);
     await this.roomRepository.softRemove(room);
+  }
+
+  async restoreByPublicId(publicId: string, tenantId: number): Promise<Room> {
+    const room = await this.roomRepository.findOne({
+      where: { publicId, tenantId },
+      withDeleted: true,
+    });
+
+    if (!room) {
+      throw new NotFoundException(`Room with public ID ${publicId} not found`);
+    }
+
+    if (!room.deletedAt) {
+      throw new ConflictException('Room is not deleted');
+    }
+
+    await this.roomRepository.restore({ publicId });
+    return this.findByPublicId(publicId, tenantId);
   }
 }

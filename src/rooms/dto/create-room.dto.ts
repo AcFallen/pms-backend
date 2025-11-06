@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsBoolean,
   IsEnum,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { RoomStatus } from '../enums/room-status.enum';
@@ -13,12 +14,12 @@ import { CleaningStatus } from '../enums/cleaning-status.enum';
 
 export class CreateRoomDto {
   @ApiProperty({
-    description: 'Room type ID',
-    example: 1,
+    description: 'Room type public ID (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty()
-  roomTypeId: number;
+  roomTypePublicId: string;
 
   @ApiProperty({
     description: 'Room number',

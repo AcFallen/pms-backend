@@ -39,6 +39,7 @@ export class Room {
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
 
+  @Exclude()
   @Column({ type: 'int', nullable: false })
   roomTypeId: number;
 
@@ -52,10 +53,20 @@ export class Room {
   @Column({ type: 'int', nullable: true })
   floor: number | null;
 
-  @Column({ type: 'enum', enum: RoomStatus, nullable: false, default: RoomStatus.AVAILABLE })
+  @Column({
+    type: 'enum',
+    enum: RoomStatus,
+    nullable: false,
+    default: RoomStatus.AVAILABLE,
+  })
   status: RoomStatus;
 
-  @Column({ type: 'enum', enum: CleaningStatus, nullable: false, default: CleaningStatus.CLEAN })
+  @Column({
+    type: 'enum',
+    enum: CleaningStatus,
+    nullable: false,
+    default: CleaningStatus.CLEAN,
+  })
   cleaningStatus: CleaningStatus;
 
   @Column({ type: 'boolean', nullable: false, default: true })

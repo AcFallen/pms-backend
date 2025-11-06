@@ -21,7 +21,9 @@ import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { Room } from './entities/room.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
 
 @ApiTags('rooms')
 @ApiBearerAuth('JWT-auth')
@@ -49,7 +51,7 @@ export class RoomsController {
     status: 409,
     description: 'Room number already exists for this tenant',
   })
-  create(@Body() createRoomDto: CreateRoomDto, @CurrentUser() user: any) {
+  create(@Body() createRoomDto: CreateRoomDto, @CurrentUser() user: CurrentUserData) {
     return this.roomsService.create(createRoomDto, user.tenantId);
   }
 
@@ -63,11 +65,11 @@ export class RoomsController {
     description: 'List of rooms retrieved successfully',
     type: [Room],
   })
-  findAll(@CurrentUser() user: any) {
+  findAll(@CurrentUser() user: CurrentUserData) {
     return this.roomsService.findAll(user.tenantId);
   }
 
-  @Get('public/:publicId')
+  @Get(':publicId')
   @ApiOperation({
     summary: 'Get room by public ID',
     description: 'Retrieves a room by its public UUID',
@@ -87,44 +89,20 @@ export class RoomsController {
     status: 404,
     description: 'Room not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+  findOne(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
     return this.roomsService.findByPublicId(publicId, user.tenantId);
   }
 
-  @Get(':id')
+  @Patch(':publicId')
   @ApiOperation({
-    summary: 'Get room by internal ID',
-    description: 'Retrieves a room by its internal ID',
+    summary: 'Update room by public ID',
+    description: 'Updates room information by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the room',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Room found',
-    type: Room,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Room not found',
-  })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.roomsService.findOne(+id, user.tenantId);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update room',
-    description: 'Updates room information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the room',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the room',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiBody({ type: UpdateRoomDto })
   @ApiResponse({
@@ -145,34 +123,67 @@ export class RoomsController {
     description: 'Room number already exists for this tenant',
   })
   update(
-    @Param('id') id: string,
+    @Param('publicId') publicId: string,
     @Body() updateRoomDto: UpdateRoomDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.roomsService.update(+id, updateRoomDto, user.tenantId);
+    return this.roomsService.updateByPublicId(publicId, updateRoomDto, user.tenantId);
   }
 
-  @Delete(':id')
+  @Delete(':publicId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Delete room (soft delete)',
-    description: 'Soft deletes a room by internal ID',
+    summary: 'Delete room by public ID (soft delete)',
+    description: 'Soft deletes a room by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the room',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the room',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiResponse({
     status: 200,
-    description: 'Room successfully deleted',
+    description: 'Room successfully deleted (soft delete)',
   })
   @ApiResponse({
     status: 404,
     description: 'Room not found',
   })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.roomsService.remove(+id, user.tenantId);
+  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.roomsService.removeByPublicId(publicId, user.tenantId);
+  }
+
+  @Patch(':publicId/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Restore deleted room (Admin only)',
+    description: 'Restores a soft-deleted room by public UUID. Only accessible by ADMIN role.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the room',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Room successfully restored',
+    type: Room,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Room not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Room is not deleted',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.roomsService.restoreByPublicId(publicId, user.tenantId);
   }
 }
