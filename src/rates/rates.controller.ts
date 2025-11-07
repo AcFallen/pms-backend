@@ -21,7 +21,9 @@ import { RatesService } from './rates.service';
 import { CreateRateDto } from './dto/create-rate.dto';
 import { UpdateRateDto } from './dto/update-rate.dto';
 import { Rate } from './entities/rate.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
 
 @ApiTags('rates')
 @ApiBearerAuth('JWT-auth')
@@ -45,7 +47,7 @@ export class RatesController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createRateDto: CreateRateDto, @CurrentUser() user: any) {
+  create(@Body() createRateDto: CreateRateDto, @CurrentUser() user: CurrentUserData) {
     return this.ratesService.create(createRateDto, user.tenantId);
   }
 
@@ -59,11 +61,11 @@ export class RatesController {
     description: 'List of rates retrieved successfully',
     type: [Rate],
   })
-  findAll(@CurrentUser() user: any) {
+  findAll(@CurrentUser() user: CurrentUserData) {
     return this.ratesService.findAll(user.tenantId);
   }
 
-  @Get('public/:publicId')
+  @Get(':publicId')
   @ApiOperation({
     summary: 'Get rate by public ID',
     description: 'Retrieves a rate by its public UUID',
@@ -83,44 +85,20 @@ export class RatesController {
     status: 404,
     description: 'Rate not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+  findOne(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
     return this.ratesService.findByPublicId(publicId, user.tenantId);
   }
 
-  @Get(':id')
+  @Patch(':publicId')
   @ApiOperation({
-    summary: 'Get rate by internal ID',
-    description: 'Retrieves a rate by its internal ID',
+    summary: 'Update rate by public ID',
+    description: 'Updates rate information by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the rate',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Rate found',
-    type: Rate,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Rate not found',
-  })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.ratesService.findOne(+id, user.tenantId);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update rate',
-    description: 'Updates rate information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the rate',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the rate',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiBody({ type: UpdateRateDto })
   @ApiResponse({
@@ -137,24 +115,24 @@ export class RatesController {
     description: 'Rate not found',
   })
   update(
-    @Param('id') id: string,
+    @Param('publicId') publicId: string,
     @Body() updateRateDto: UpdateRateDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ratesService.update(+id, updateRateDto, user.tenantId);
+    return this.ratesService.updateByPublicId(publicId, updateRateDto, user.tenantId);
   }
 
-  @Delete(':id')
+  @Delete(':publicId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete rate (soft delete)',
-    description: 'Soft deletes a rate by internal ID',
+    description: 'Soft deletes a rate by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the rate',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the rate',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiResponse({
     status: 200,
@@ -164,7 +142,36 @@ export class RatesController {
     status: 404,
     description: 'Rate not found',
   })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.ratesService.remove(+id, user.tenantId);
+  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.ratesService.removeByPublicId(publicId, user.tenantId);
+  }
+
+  @Patch(':publicId/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Restore deleted rate (Admin only)',
+    description: 'Restores a soft-deleted rate by public UUID. Only accessible by ADMIN role.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the rate',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rate successfully restored',
+    type: Rate,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Rate not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Rate is not deleted',
+  })
+  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.ratesService.restoreByPublicId(publicId, user.tenantId);
   }
 }
