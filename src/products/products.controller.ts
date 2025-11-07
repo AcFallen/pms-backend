@@ -20,7 +20,9 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
 
 @ApiTags('products')
 @ApiBearerAuth('JWT-auth')
@@ -44,9 +46,9 @@ export class ProductsController {
   })
   create(
     @Body() createProductDto: CreateProductDto,
-    @CurrentUser('tenantId') tenantId: number,
+    @CurrentUser() user: CurrentUserData,
   ): Promise<Product> {
-    return this.productsService.create(createProductDto, tenantId);
+    return this.productsService.create(createProductDto, user.tenantId);
   }
 
   @Get()
@@ -57,13 +59,18 @@ export class ProductsController {
     type: [Product],
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findAll(@CurrentUser('tenantId') tenantId: number): Promise<Product[]> {
-    return this.productsService.findAll(tenantId);
+  findAll(@CurrentUser() user: CurrentUserData): Promise<Product[]> {
+    return this.productsService.findAll(user.tenantId);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get a product by ID' })
-  @ApiParam({ name: 'id', type: Number, description: 'Product ID' })
+  @Get(':publicId')
+  @ApiOperation({ summary: 'Get a product by public ID' })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Product public UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000'
+  })
   @ApiResponse({
     status: 200,
     description: 'Product retrieved successfully',
@@ -72,15 +79,20 @@ export class ProductsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   findOne(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser('tenantId') tenantId: number,
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
   ): Promise<Product> {
-    return this.productsService.findOne(id, tenantId);
+    return this.productsService.findByPublicId(publicId, user.tenantId);
   }
 
-  @Patch(':id')
-  @ApiOperation({ summary: 'Update a product' })
-  @ApiParam({ name: 'id', type: Number, description: 'Product ID' })
+  @Patch(':publicId')
+  @ApiOperation({ summary: 'Update a product by public ID' })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Product public UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000'
+  })
   @ApiBody({ type: UpdateProductDto })
   @ApiResponse({
     status: 200,
@@ -95,23 +107,54 @@ export class ProductsController {
     description: 'Product with this SKU already exists',
   })
   update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('publicId') publicId: string,
     @Body() updateProductDto: UpdateProductDto,
-    @CurrentUser('tenantId') tenantId: number,
+    @CurrentUser() user: CurrentUserData,
   ): Promise<Product> {
-    return this.productsService.update(id, updateProductDto, tenantId);
+    return this.productsService.updateByPublicId(publicId, updateProductDto, user.tenantId);
   }
 
-  @Delete(':id')
-  @ApiOperation({ summary: 'Delete a product' })
-  @ApiParam({ name: 'id', type: Number, description: 'Product ID' })
+  @Delete(':publicId')
+  @ApiOperation({ summary: 'Delete a product (soft delete)' })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Product public UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000'
+  })
   @ApiResponse({ status: 200, description: 'Product deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Product not found' })
   remove(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentUser('tenantId') tenantId: number,
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
   ): Promise<void> {
-    return this.productsService.remove(id, tenantId);
+    return this.productsService.removeByPublicId(publicId, user.tenantId);
+  }
+
+  @Patch(':publicId/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Restore deleted product (Admin only)',
+    description: 'Restores a soft-deleted product by public UUID. Only accessible by ADMIN role.'
+  })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Product public UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Product successfully restored',
+    type: Product,
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  @ApiResponse({ status: 409, description: 'Product is not deleted' })
+  restore(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<Product> {
+    return this.productsService.restoreByPublicId(publicId, user.tenantId);
   }
 }

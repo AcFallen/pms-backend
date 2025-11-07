@@ -6,17 +6,18 @@ import {
   IsNumber,
   IsBoolean,
   Min,
+  IsUUID,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateProductDto {
   @ApiProperty({
-    description: 'Product category ID',
-    example: 1,
+    description: 'Product category public ID (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsNumber()
+  @IsUUID()
   @IsNotEmpty()
-  categoryId: number;
+  categoryPublicId: string;
 
   @ApiProperty({
     description: 'Product name',

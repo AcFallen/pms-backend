@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
@@ -47,18 +47,36 @@ export class ProductCategoriesService {
     return productCategory;
   }
 
-  async update(
-    id: number,
+  async updateByPublicId(
+    publicId: string,
     updateProductCategoryDto: UpdateProductCategoryDto,
     tenantId: number,
   ): Promise<ProductCategory> {
-    const productCategory = await this.findOne(id, tenantId);
+    const productCategory = await this.findByPublicId(publicId, tenantId);
     Object.assign(productCategory, updateProductCategoryDto);
     return await this.productCategoryRepository.save(productCategory);
   }
 
-  async remove(id: number, tenantId: number): Promise<void> {
-    const productCategory = await this.findOne(id, tenantId);
-    await this.productCategoryRepository.remove(productCategory);
+  async removeByPublicId(publicId: string, tenantId: number): Promise<void> {
+    const productCategory = await this.findByPublicId(publicId, tenantId);
+    await this.productCategoryRepository.softRemove(productCategory);
+  }
+
+  async restoreByPublicId(publicId: string, tenantId: number): Promise<ProductCategory> {
+    const productCategory = await this.productCategoryRepository.findOne({
+      where: { publicId, tenantId },
+      withDeleted: true,
+    });
+
+    if (!productCategory) {
+      throw new NotFoundException(`Product category with public ID ${publicId} not found`);
+    }
+
+    if (!productCategory.deletedAt) {
+      throw new ConflictException('Product category is not deleted');
+    }
+
+    await this.productCategoryRepository.restore({ publicId });
+    return this.findByPublicId(publicId, tenantId);
   }
 }

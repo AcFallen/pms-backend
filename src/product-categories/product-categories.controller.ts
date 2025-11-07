@@ -21,7 +21,9 @@ import { ProductCategoriesService } from './product-categories.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductCategory } from './entities/product-category.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/enums/user-role.enum';
 
 @ApiTags('product-categories')
 @ApiBearerAuth('JWT-auth')
@@ -45,7 +47,7 @@ export class ProductCategoriesController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createProductCategoryDto: CreateProductCategoryDto, @CurrentUser() user: any) {
+  create(@Body() createProductCategoryDto: CreateProductCategoryDto, @CurrentUser() user: CurrentUserData) {
     return this.productCategoriesService.create(createProductCategoryDto, user.tenantId);
   }
 
@@ -59,11 +61,11 @@ export class ProductCategoriesController {
     description: 'List of product categories retrieved successfully',
     type: [ProductCategory],
   })
-  findAll(@CurrentUser() user: any) {
+  findAll(@CurrentUser() user: CurrentUserData) {
     return this.productCategoriesService.findAll(user.tenantId);
   }
 
-  @Get('public/:publicId')
+  @Get(':publicId')
   @ApiOperation({
     summary: 'Get product category by public ID',
     description: 'Retrieves a product category by its public UUID',
@@ -83,44 +85,20 @@ export class ProductCategoriesController {
     status: 404,
     description: 'Product category not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+  findOne(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
     return this.productCategoriesService.findByPublicId(publicId, user.tenantId);
   }
 
-  @Get(':id')
+  @Patch(':publicId')
   @ApiOperation({
-    summary: 'Get product category by internal ID',
-    description: 'Retrieves a product category by its internal ID',
+    summary: 'Update product category by public ID',
+    description: 'Updates product category information by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the product category',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Product category found',
-    type: ProductCategory,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Product category not found',
-  })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.productCategoriesService.findOne(+id, user.tenantId);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update product category',
-    description: 'Updates product category information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the product category',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the product category',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiBody({ type: UpdateProductCategoryDto })
   @ApiResponse({
@@ -137,24 +115,24 @@ export class ProductCategoriesController {
     description: 'Product category not found',
   })
   update(
-    @Param('id') id: string,
+    @Param('publicId') publicId: string,
     @Body() updateProductCategoryDto: UpdateProductCategoryDto,
-    @CurrentUser() user: any,
+    @CurrentUser() user: CurrentUserData,
   ) {
-    return this.productCategoriesService.update(+id, updateProductCategoryDto, user.tenantId);
+    return this.productCategoriesService.updateByPublicId(publicId, updateProductCategoryDto, user.tenantId);
   }
 
-  @Delete(':id')
+  @Delete(':publicId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Delete product category',
-    description: 'Deletes a product category by internal ID',
+    summary: 'Delete product category (soft delete)',
+    description: 'Soft deletes a product category by public UUID',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the product category',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    description: 'Public UUID of the product category',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
   })
   @ApiResponse({
     status: 200,
@@ -164,7 +142,36 @@ export class ProductCategoriesController {
     status: 404,
     description: 'Product category not found',
   })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.productCategoriesService.remove(+id, user.tenantId);
+  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.productCategoriesService.removeByPublicId(publicId, user.tenantId);
+  }
+
+  @Patch(':publicId/restore')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Restore deleted product category (Admin only)',
+    description: 'Restores a soft-deleted product category by public UUID. Only accessible by ADMIN role.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the product category',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Product category successfully restored',
+    type: ProductCategory,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Product category not found',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Product category is not deleted',
+  })
+  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+    return this.productCategoriesService.restoreByPublicId(publicId, user.tenantId);
   }
 }

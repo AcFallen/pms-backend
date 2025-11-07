@@ -4,15 +4,26 @@ import { Repository } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
+import { ProductCategory } from '../product-categories/entities/product-category.entity';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(ProductCategory)
+    private readonly productCategoryRepository: Repository<ProductCategory>,
   ) {}
 
   async create(createProductDto: CreateProductDto, tenantId: number): Promise<Product> {
+    // Find product category by public ID
+    const category = await this.productCategoryRepository.findOne({
+      where: { publicId: createProductDto.categoryPublicId, tenantId },
+    });
+    if (!category) {
+      throw new NotFoundException('Product category not found');
+    }
+
     // Check SKU uniqueness if SKU is provided
     if (createProductDto.sku) {
       const existingProduct = await this.productRepository.findOne({
@@ -23,8 +34,11 @@ export class ProductsService {
       }
     }
 
+    // Create product with internal categoryId
+    const { categoryPublicId, ...productData } = createProductDto;
     const product = this.productRepository.create({
-      ...createProductDto,
+      ...productData,
+      categoryId: category.id,
       tenantId,
     });
     return await this.productRepository.save(product);
@@ -60,12 +74,23 @@ export class ProductsService {
     return product;
   }
 
-  async update(
-    id: number,
+  async updateByPublicId(
+    publicId: string,
     updateProductDto: UpdateProductDto,
     tenantId: number,
   ): Promise<Product> {
-    const product = await this.findOne(id, tenantId);
+    const product = await this.findByPublicId(publicId, tenantId);
+
+    // If category is being updated, find it by public ID
+    if (updateProductDto.categoryPublicId) {
+      const category = await this.productCategoryRepository.findOne({
+        where: { publicId: updateProductDto.categoryPublicId, tenantId },
+      });
+      if (!category) {
+        throw new NotFoundException('Product category not found');
+      }
+      product.categoryId = category.id;
+    }
 
     // Check SKU uniqueness if SKU is being changed
     if (updateProductDto.sku && updateProductDto.sku !== product.sku) {
@@ -77,12 +102,32 @@ export class ProductsService {
       }
     }
 
-    Object.assign(product, updateProductDto);
+    // Update other fields (excluding categoryPublicId as we already handled it)
+    const { categoryPublicId, ...updateData } = updateProductDto;
+    Object.assign(product, updateData);
     return await this.productRepository.save(product);
   }
 
-  async remove(id: number, tenantId: number): Promise<void> {
-    const product = await this.findOne(id, tenantId);
-    await this.productRepository.remove(product);
+  async removeByPublicId(publicId: string, tenantId: number): Promise<void> {
+    const product = await this.findByPublicId(publicId, tenantId);
+    await this.productRepository.softRemove(product);
+  }
+
+  async restoreByPublicId(publicId: string, tenantId: number): Promise<Product> {
+    const product = await this.productRepository.findOne({
+      where: { publicId, tenantId },
+      withDeleted: true,
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product with public ID ${publicId} not found`);
+    }
+
+    if (!product.deletedAt) {
+      throw new ConflictException('Product is not deleted');
+    }
+
+    await this.productRepository.restore({ publicId });
+    return this.findByPublicId(publicId, tenantId);
   }
 }
