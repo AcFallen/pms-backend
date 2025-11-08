@@ -16,6 +16,7 @@ import { Room } from '../../rooms/entities/room.entity';
 import { RoomType } from '../../room-types/entities/room-type.entity';
 import { ReservationStatus } from '../enums/reservation-status.enum';
 import { ReservationSource } from '../enums/reservation-source.enum';
+import { ReservationType } from '../enums/reservation-type.enum';
 
 @Entity('reservations')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -83,6 +84,14 @@ export class Reservation {
   })
   source: ReservationSource;
 
+  @Column({
+    type: 'enum',
+    enum: ReservationType,
+    nullable: false,
+    default: ReservationType.NIGHTLY,
+  })
+  reservationType: ReservationType;
+
   @Column({ type: 'date', nullable: false })
   checkInDate: Date;
 
@@ -98,6 +107,15 @@ export class Reservation {
   @Column({ type: 'int', nullable: false })
   nights: number;
 
+  @Column({ type: 'int', nullable: true })
+  hours: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  hourlyStartTime: Date | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  hourlyEndTime: Date | null;
+
   @Column({ type: 'int', nullable: false, default: 1 })
   adults: number;
 
@@ -106,6 +124,9 @@ export class Reservation {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   ratePerNight: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  ratePerHour: string | null;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   totalAmount: string;

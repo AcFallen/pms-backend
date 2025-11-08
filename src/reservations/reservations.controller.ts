@@ -8,6 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,13 +16,15 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { Reservation } from './entities/reservation.entity';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('reservations')
 @ApiBearerAuth('JWT-auth')
@@ -63,8 +66,77 @@ export class ReservationsController {
     description: 'List of reservations retrieved successfully',
     type: [Reservation],
   })
-  findAll(@CurrentUser() user: any) {
+  findAll(@CurrentUser() user: CurrentUserData) {
     return this.reservationsService.findAll(user.tenantId);
+  }
+
+  @Get('calendar-reservations')
+  @ApiOperation({
+    summary: 'Get reservations for calendar grid',
+    description: 'Retrieves reservations within a specific date range for the calendar view. Excludes cancelled reservations. Optimized for frontend calendar grid rendering.',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: true,
+    type: String,
+    description: 'Start date for calendar range (ISO 8601 format: YYYY-MM-DD)',
+    example: '2025-11-08',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: true,
+    type: String,
+    description: 'End date for calendar range (ISO 8601 format: YYYY-MM-DD)',
+    example: '2025-11-22',
+  })
+  @ApiQuery({
+    name: 'roomPublicId',
+    required: false,
+    type: String,
+    description: 'Optional: Filter by specific room UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of reservations for calendar grid',
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          publicId: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440000' },
+          roomPublicId: { type: 'string', example: '0e4c47ba-b3fc-49b6-ae41-a174334bb525' },
+          guest: {
+            type: 'object',
+            properties: {
+              publicId: { type: 'string' },
+              firstName: { type: 'string' },
+              lastName: { type: 'string' },
+              documentType: { type: 'string' },
+              documentNumber: { type: 'string' },
+            },
+          },
+          checkInDate: { type: 'string', example: '2025-11-08' },
+          checkOutDate: { type: 'string', example: '2025-11-11' },
+          status: { type: 'string', example: 'confirmed' },
+          numberOfGuests: { type: 'number', example: 2 },
+          totalAmount: { type: 'string', example: '180.00' },
+          notes: { type: 'string', nullable: true },
+          createdAt: { type: 'string', example: '2025-11-01T10:30:00.000Z' },
+          updatedAt: { type: 'string', example: '2025-11-01T10:30:00.000Z' },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid date range',
+  })
+  findForCalendar(
+    @Query() filterDto: FilterCalendarReservationsDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.reservationsService.findForCalendar(filterDto, user.tenantId);
   }
 
   @Get('public/:publicId')

@@ -1,15 +1,20 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { Reservation } from './entities/reservation.entity';
+import { Room } from '../rooms/entities/room.entity';
+import { ReservationStatus } from './enums/reservation-status.enum';
 
 @Injectable()
 export class ReservationsService {
   constructor(
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
+    @InjectRepository(Room)
+    private readonly roomRepository: Repository<Room>,
   ) {}
 
   async create(createReservationDto: CreateReservationDto, tenantId: number): Promise<Reservation> {
@@ -106,5 +111,44 @@ export class ReservationsService {
   async remove(id: number, tenantId: number): Promise<void> {
     const reservation = await this.findOne(id, tenantId);
     await this.reservationRepository.remove(reservation);
+  }
+
+  async findForCalendar(
+    filterDto: FilterCalendarReservationsDto,
+    tenantId: number,
+  ): Promise<Reservation[]> {
+    const { startDate, endDate, roomPublicId } = filterDto;
+
+    // Validate date range
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    if (end <= start) {
+      throw new BadRequestException('End date must be after start date');
+    }
+
+    const queryBuilder = this.reservationRepository
+      .createQueryBuilder('reservation')
+      .leftJoinAndSelect('reservation.guest', 'guest')
+      .leftJoinAndSelect('reservation.room', 'room')
+      .where('reservation.tenantId = :tenantId', { tenantId })
+      // Exclude cancelled reservations from calendar
+      .andWhere('reservation.status != :cancelledStatus', {
+        cancelledStatus: ReservationStatus.CANCELLED,
+      })
+      // Find reservations that overlap with the date range
+      // A reservation overlaps if: checkInDate < endDate AND checkOutDate > startDate
+      .andWhere('reservation.checkInDate < :endDate', { endDate })
+      .andWhere('reservation.checkOutDate > :startDate', { startDate });
+
+    // Filter by room if provided
+    if (roomPublicId) {
+      queryBuilder.andWhere('room.publicId = :roomPublicId', { roomPublicId });
+    }
+
+    // Order by check-in date
+    queryBuilder.orderBy('reservation.checkInDate', 'ASC');
+
+    return await queryBuilder.getMany();
   }
 }
