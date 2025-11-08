@@ -35,6 +35,7 @@ export interface RucApiResponse {
 
 // Guest Search Response
 export interface GuestSearchResponse {
+  publicId: string | null;  // UUID if found in database, null if from API or not found
   firstName: string | null;
   lastName: string | null;
   documentType: string;

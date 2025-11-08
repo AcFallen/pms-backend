@@ -78,6 +78,12 @@ export class GuestsController {
     schema: {
       type: 'object',
       properties: {
+        publicId: {
+          type: 'string',
+          nullable: true,
+          description: 'Guest UUID if found in database, null if from external API or not found',
+          example: '550e8400-e29b-41d4-a716-446655440000',
+        },
         firstName: { type: 'string', nullable: true },
         lastName: { type: 'string', nullable: true },
         documentType: { type: 'string', example: 'DNI' },

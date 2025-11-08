@@ -180,6 +180,7 @@ export class GuestsService {
 
     if (existingGuest) {
       return {
+        publicId: existingGuest.publicId,  // Return publicId for direct use in reservations
         firstName: existingGuest.firstName,
         lastName: existingGuest.lastName,
         documentType: existingGuest.documentType,
@@ -288,6 +289,7 @@ export class GuestsService {
     const lastName: string | null = lastNameParts.length > 0 ? lastNameParts.join(' ') : null;
 
     return {
+      publicId: null,  // From external API, guest not yet created
       firstName: data.nombres || null,
       lastName: lastName,
       documentType: DocumentType.DNI,
@@ -339,6 +341,7 @@ export class GuestsService {
     }
 
     return {
+      publicId: null,  // From external API, guest not yet created
       firstName: firstName,
       lastName: lastName,
       documentType: DocumentType.RUC,
@@ -360,6 +363,7 @@ export class GuestsService {
     documentNumber: string,
   ): GuestSearchResponse {
     return {
+      publicId: null,  // Guest not found
       firstName: null,
       lastName: null,
       documentType: documentType,
