@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { FilterRoomsDto } from './dto/filter-rooms.dto';
 import { Room } from './entities/room.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
 
@@ -48,6 +49,44 @@ export class RoomsService {
       relations: ['roomType'],
       order: { roomNumber: 'ASC' },
     });
+  }
+
+  async findForCalendarSidebar(tenantId: number, filterDto: FilterRoomsDto): Promise<Room[]> {
+    const queryBuilder = this.roomRepository
+      .createQueryBuilder('room')
+      .leftJoinAndSelect('room.roomType', 'roomType')
+      .where('room.tenantId = :tenantId', { tenantId });
+
+    // Search by room number
+    if (filterDto.search) {
+      queryBuilder.andWhere('room.roomNumber ILIKE :search', {
+        search: `%${filterDto.search}%`,
+      });
+    }
+
+    // Filter by room status
+    if (filterDto.status) {
+      queryBuilder.andWhere('room.status = :status', { status: filterDto.status });
+    }
+
+    // Filter by cleaning status
+    if (filterDto.cleaningStatus) {
+      queryBuilder.andWhere('room.cleaningStatus = :cleaningStatus', {
+        cleaningStatus: filterDto.cleaningStatus,
+      });
+    }
+
+    // Filter by room type public ID
+    if (filterDto.roomTypePublicId) {
+      queryBuilder.andWhere('roomType.publicId = :roomTypePublicId', {
+        roomTypePublicId: filterDto.roomTypePublicId,
+      });
+    }
+
+    // Order by room number
+    queryBuilder.orderBy('room.roomNumber', 'ASC');
+
+    return await queryBuilder.getMany();
   }
 
   async findOne(id: number, tenantId: number): Promise<Room> {

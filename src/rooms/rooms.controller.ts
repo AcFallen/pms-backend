@@ -8,6 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -15,12 +16,16 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { RoomsService } from './rooms.service';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { FilterRoomsDto } from './dto/filter-rooms.dto';
 import { Room } from './entities/room.entity';
+import { RoomStatus } from './enums/room-status.enum';
+import { CleaningStatus } from './enums/cleaning-status.enum';
 import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -67,6 +72,51 @@ export class RoomsController {
   })
   findAll(@CurrentUser() user: CurrentUserData) {
     return this.roomsService.findAll(user.tenantId);
+  }
+
+  @Get('calendar-sidebar')
+  @ApiOperation({
+    summary: 'Get rooms for calendar sidebar with filters',
+    description: 'Retrieves rooms for calendar sidebar with optional filters for status, cleaning status, room type, and room number search. Designed for frontend calendar sidebar.',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by room number',
+    example: '101',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: RoomStatus,
+    description: 'Filter by room status',
+    example: RoomStatus.AVAILABLE,
+  })
+  @ApiQuery({
+    name: 'cleaningStatus',
+    required: false,
+    enum: CleaningStatus,
+    description: 'Filter by cleaning status',
+    example: CleaningStatus.CLEAN,
+  })
+  @ApiQuery({
+    name: 'roomTypePublicId',
+    required: false,
+    type: String,
+    description: 'Filter by room type public UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Filtered list of rooms for calendar sidebar',
+    type: [Room],
+  })
+  findForCalendarSidebar(
+    @Query() filterDto: FilterRoomsDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.roomsService.findForCalendarSidebar(user.tenantId, filterDto);
   }
 
   @Get(':publicId')
