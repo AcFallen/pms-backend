@@ -16,7 +16,6 @@ import { Room } from '../../rooms/entities/room.entity';
 import { RoomType } from '../../room-types/entities/room-type.entity';
 import { ReservationStatus } from '../enums/reservation-status.enum';
 import { ReservationSource } from '../enums/reservation-source.enum';
-import { ReservationType } from '../enums/reservation-type.enum';
 
 @Entity('reservations')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -84,37 +83,39 @@ export class Reservation {
   })
   source: ReservationSource;
 
-  @Column({
-    type: 'enum',
-    enum: ReservationType,
-    nullable: false,
-    default: ReservationType.NIGHTLY,
-  })
-  reservationType: ReservationType;
-
   @Column({ type: 'date', nullable: false })
   checkInDate: Date;
 
   @Column({ type: 'date', nullable: false })
   checkOutDate: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    comment: 'Timestamp real de check-in (cuando el huésped entra)',
+  })
   checkInTime: Date | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({
+    type: 'timestamp',
+    nullable: true,
+    comment: 'Timestamp real de check-out (cuando el huésped sale)',
+  })
   checkOutTime: Date | null;
 
-  @Column({ type: 'int', nullable: false })
-  nights: number;
+  @Column({
+    type: 'int',
+    nullable: true,
+    comment: 'Número de noches (calculado o manual)',
+  })
+  nights: number | null;
 
-  @Column({ type: 'int', nullable: true })
+  @Column({
+    type: 'int',
+    nullable: true,
+    comment: 'Número de horas (solo si el tenant cobra por hora)',
+  })
   hours: number | null;
-
-  @Column({ type: 'timestamp', nullable: true })
-  hourlyStartTime: Date | null;
-
-  @Column({ type: 'timestamp', nullable: true })
-  hourlyEndTime: Date | null;
 
   @Column({ type: 'int', nullable: false, default: 1 })
   adults: number;
@@ -122,13 +123,22 @@ export class Reservation {
   @Column({ type: 'int', nullable: false, default: 0 })
   children: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
-  ratePerNight: string;
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    comment: 'Tarifa aplicada (por noche, por hora, o precio fijo según configuración del tenant)',
+  })
+  appliedRate: string | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  ratePerHour: string | null;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    comment: 'Monto total de la reserva',
+  })
   totalAmount: string;
 
   @Column({ type: 'text', nullable: true })

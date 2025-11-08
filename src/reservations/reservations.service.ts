@@ -1,13 +1,12 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { Repository } from 'typeorm';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { Reservation } from './entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
-import { ReservationType } from './enums/reservation-type.enum';
 
 @Injectable()
 export class ReservationsService {
@@ -32,37 +31,19 @@ export class ReservationsService {
       );
     }
 
-    // Validate reservation type specific fields
-    const reservationType = createReservationDto.reservationType || ReservationType.NIGHTLY;
-
-    if (reservationType === ReservationType.HOURLY) {
-      // Validate hourly reservation fields
-      if (!createReservationDto.hours) {
-        throw new BadRequestException('Hours is required for hourly reservations');
-      }
-      if (!createReservationDto.hourlyStartTime) {
-        throw new BadRequestException('Hourly start time is required for hourly reservations');
-      }
-      if (!createReservationDto.hourlyEndTime) {
-        throw new BadRequestException('Hourly end time is required for hourly reservations');
-      }
-      if (!createReservationDto.ratePerHour) {
-        throw new BadRequestException('Rate per hour is required for hourly reservations');
-      }
-    } else {
-      // Validate nightly reservation fields
-      if (!createReservationDto.nights) {
-        throw new BadRequestException('Nights is required for nightly reservations');
-      }
-      if (!createReservationDto.ratePerNight) {
-        throw new BadRequestException('Rate per night is required for nightly reservations');
-      }
+    // Calculate nights if not provided
+    let nights = createReservationDto.nights;
+    if (!nights) {
+      const checkIn = new Date(createReservationDto.checkInDate);
+      const checkOut = new Date(createReservationDto.checkOutDate);
+      const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
+      nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
 
     const reservation = this.reservationRepository.create({
       ...createReservationDto,
+      nights,
       tenantId,
-      reservationType,
     });
     return await this.reservationRepository.save(reservation);
   }

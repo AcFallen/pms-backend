@@ -36,7 +36,7 @@ export class ReservationsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new reservation',
-    description: 'Creates a new reservation for the authenticated tenant. Supports both nightly and hourly reservations. For nightly reservations, provide nights and ratePerNight. For hourly reservations, provide hours, hourlyStartTime, hourlyEndTime, and ratePerHour.',
+    description: 'Creates a new reservation for the authenticated tenant. El sistema calcula automáticamente las noches si no se proporcionan. El cobro y la política de checkout dependen de la configuración del tenant.',
   })
   @ApiBody({ type: CreateReservationDto })
   @ApiResponse({
@@ -46,7 +46,7 @@ export class ReservationsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error - Missing required fields for reservation type',
+    description: 'Validation error',
   })
   @ApiResponse({
     status: 409,

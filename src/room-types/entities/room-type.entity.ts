@@ -44,8 +44,23 @@ export class RoomType {
   @Column({ type: 'int', nullable: false, default: 2 })
   maxOccupancy: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    comment: 'Precio base de la habitación (para modo FIXED_PRICE del tenant)',
+  })
   basePrice: string;
+
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    comment: 'Precio mínimo de la habitación (para modo MINIMUM_PRICE del tenant, el recepcionista cobra según criterio basándose en este mínimo)',
+  })
+  minimumPrice: string | null;
 
   @Column({ type: 'boolean', nullable: false, default: true })
   isActive: boolean;

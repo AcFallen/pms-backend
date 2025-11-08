@@ -10,6 +10,8 @@ import {
 } from 'typeorm';
 import { TenantStatus } from '../enums/tenant-status.enum';
 import { TenantPlan } from '../enums/tenant-plan.enum';
+import { BillingMode } from '../enums/billing-mode.enum';
+import { CheckoutPolicy } from '../enums/checkout-policy.enum';
 import { User } from '../../users/entities/user.entity';
 import { Exclude } from 'class-transformer';
 
@@ -71,6 +73,43 @@ export class Tenant {
 
   @Column({ type: 'int', nullable: false, default: 10 })
   maxRooms: number;
+
+  // Configuraciones de facturación y checkout
+  @Column({
+    type: 'enum',
+    enum: BillingMode,
+    nullable: false,
+    default: BillingMode.FIXED_PRICE,
+    comment: 'Modo de cobro: FIXED_PRICE (usa basePrice del room type) o MINIMUM_PRICE (usa minimumPrice del room type)',
+  })
+  billingMode: BillingMode;
+
+  @Column({
+    type: 'enum',
+    enum: CheckoutPolicy,
+    nullable: false,
+    default: CheckoutPolicy.FIXED_TIME,
+    comment: 'Política de checkout: hora fija o 24h flexibles desde check-in',
+  })
+  checkoutPolicy: CheckoutPolicy;
+
+  @Column({
+    type: 'time',
+    nullable: true,
+    default: '12:00:00',
+    comment: 'Hora de checkout (solo si checkoutPolicy es FIXED_TIME)',
+  })
+  checkoutTime: string | null;
+
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+    default: '0.00',
+    comment: 'Cargo adicional por checkout tardío',
+  })
+  lateCheckoutFee: string | null;
 
   @Column({ type: 'varchar', length: 500, nullable: true })
   logoUrl: string | null;
