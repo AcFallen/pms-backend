@@ -23,8 +23,10 @@ import { GuestsService } from './guests.service';
 import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
 import { FilterGuestsDto } from './dto/filter-guests.dto';
+import { SearchGuestDto } from './dto/search-guest.dto';
 import { Guest } from './entities/guest.entity';
 import { PaginatedGuests } from './interfaces/paginated-guests.interface';
+import { GuestSearchResponse } from './interfaces/external-api-response.interface';
 import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
@@ -60,6 +62,58 @@ export class GuestsController {
     @CurrentUser() user: CurrentUserData,
   ): Promise<Guest> {
     return this.guestsService.create(createGuestDto, user.tenantId);
+  }
+
+  @Post('search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Search guest by document',
+    description:
+      'Searches for guest information by document type and number. First checks the database, then queries external APIs (RENIEC for DNI, SUNAT for RUC) if not found. Maximum wait time: 30 seconds for external APIs.',
+  })
+  @ApiBody({ type: SearchGuestDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Search completed successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        firstName: { type: 'string', nullable: true },
+        lastName: { type: 'string', nullable: true },
+        documentType: { type: 'string', example: 'DNI' },
+        documentNumber: { type: 'string', example: '77206879' },
+        email: { type: 'string', nullable: true },
+        phone: { type: 'string', nullable: true },
+        address: { type: 'string', nullable: true },
+        city: { type: 'string', nullable: true },
+        country: { type: 'string', nullable: true },
+        birthDate: { type: 'string', nullable: true },
+        notes: { type: 'string', nullable: true },
+        source: {
+          type: 'string',
+          enum: ['database', 'external_api', 'not_found'],
+          example: 'external_api',
+        },
+        message: {
+          type: 'string',
+          example: 'Información obtenida de RENIEC',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid document type or number',
+  })
+  @ApiResponse({
+    status: 408,
+    description: 'External API request timeout (exceeded 30 seconds)',
+  })
+  searchGuest(
+    @Body() searchDto: SearchGuestDto,
+    @CurrentUser() user: CurrentUserData,
+  ): Promise<GuestSearchResponse> {
+    return this.guestsService.searchGuest(searchDto, user.tenantId);
   }
 
   @Get()
