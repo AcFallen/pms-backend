@@ -7,6 +7,7 @@ import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservation
 import { Reservation } from './entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
+import { ReservationType } from './enums/reservation-type.enum';
 
 @Injectable()
 export class ReservationsService {
@@ -31,9 +32,37 @@ export class ReservationsService {
       );
     }
 
+    // Validate reservation type specific fields
+    const reservationType = createReservationDto.reservationType || ReservationType.NIGHTLY;
+
+    if (reservationType === ReservationType.HOURLY) {
+      // Validate hourly reservation fields
+      if (!createReservationDto.hours) {
+        throw new BadRequestException('Hours is required for hourly reservations');
+      }
+      if (!createReservationDto.hourlyStartTime) {
+        throw new BadRequestException('Hourly start time is required for hourly reservations');
+      }
+      if (!createReservationDto.hourlyEndTime) {
+        throw new BadRequestException('Hourly end time is required for hourly reservations');
+      }
+      if (!createReservationDto.ratePerHour) {
+        throw new BadRequestException('Rate per hour is required for hourly reservations');
+      }
+    } else {
+      // Validate nightly reservation fields
+      if (!createReservationDto.nights) {
+        throw new BadRequestException('Nights is required for nightly reservations');
+      }
+      if (!createReservationDto.ratePerNight) {
+        throw new BadRequestException('Rate per night is required for nightly reservations');
+      }
+    }
+
     const reservation = this.reservationRepository.create({
       ...createReservationDto,
       tenantId,
+      reservationType,
     });
     return await this.reservationRepository.save(reservation);
   }

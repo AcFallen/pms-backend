@@ -36,7 +36,7 @@ export class ReservationsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new reservation',
-    description: 'Creates a new reservation for the authenticated tenant',
+    description: 'Creates a new reservation for the authenticated tenant. Supports both nightly and hourly reservations. For nightly reservations, provide nights and ratePerNight. For hourly reservations, provide hours, hourlyStartTime, hourlyEndTime, and ratePerHour.',
   })
   @ApiBody({ type: CreateReservationDto })
   @ApiResponse({
@@ -46,7 +46,7 @@ export class ReservationsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error',
+    description: 'Validation error - Missing required fields for reservation type',
   })
   @ApiResponse({
     status: 409,
@@ -98,7 +98,7 @@ export class ReservationsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'List of reservations for calendar grid',
+    description: 'List of reservations for calendar grid (includes both nightly and hourly reservations)',
     schema: {
       type: 'array',
       items: {
@@ -106,6 +106,7 @@ export class ReservationsController {
         properties: {
           publicId: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440000' },
           roomPublicId: { type: 'string', example: '0e4c47ba-b3fc-49b6-ae41-a174334bb525' },
+          reservationType: { type: 'string', enum: ['nightly', 'hourly'], example: 'nightly' },
           guest: {
             type: 'object',
             properties: {
@@ -119,6 +120,12 @@ export class ReservationsController {
           checkInDate: { type: 'string', example: '2025-11-08' },
           checkOutDate: { type: 'string', example: '2025-11-11' },
           status: { type: 'string', example: 'confirmed' },
+          nights: { type: 'number', example: 3, nullable: true, description: 'For nightly reservations' },
+          hours: { type: 'number', example: 3, nullable: true, description: 'For hourly reservations' },
+          hourlyStartTime: { type: 'string', example: '2025-11-08T14:00:00Z', nullable: true, description: 'For hourly reservations' },
+          hourlyEndTime: { type: 'string', example: '2025-11-08T17:00:00Z', nullable: true, description: 'For hourly reservations' },
+          ratePerNight: { type: 'string', example: '60.00', nullable: true, description: 'For nightly reservations' },
+          ratePerHour: { type: 'string', example: '25.00', nullable: true, description: 'For hourly reservations' },
           numberOfGuests: { type: 'number', example: 2 },
           totalAmount: { type: 'string', example: '180.00' },
           notes: { type: 'string', nullable: true },

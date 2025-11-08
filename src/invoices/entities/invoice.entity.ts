@@ -14,7 +14,7 @@ import { InvoiceType } from '../enums/invoice-type.enum';
 import { InvoiceStatus } from '../enums/invoice-status.enum';
 import { CustomerDocumentType } from '../enums/customer-document-type.enum';
 import { Folio } from '../../folios/entities/folio.entity';
-import { TenantVoucherSeries } from '../../tenants/entities/tenant-voucher-series.entity';
+import { TenantVoucherSeries } from '../../teanant-vourcher-series/entities/tenant-voucher-series.entity';
 
 @Entity('invoices')
 @Index(['tenantId', 'publicId'], { unique: true })

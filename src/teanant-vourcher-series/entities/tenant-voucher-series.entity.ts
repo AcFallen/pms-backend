@@ -10,7 +10,7 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
-import { Tenant } from './tenant.entity';
+import { Tenant } from '../../tenants/entities/tenant.entity';
 import { VoucherType } from '../enums/voucher-type.enum';
 
 @Entity('tenant_voucher_series')

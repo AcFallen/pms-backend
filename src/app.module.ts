@@ -18,6 +18,7 @@ import { FoliosModule } from './folios/folios.module';
 import { FolioChargesModule } from './folio-charges/folio-charges.module';
 import { PaymentsModule } from './payments/payments.module';
 import { InvoicesModule } from './invoices/invoices.module';
+import { TenantVoucherSeriesModule } from './teanant-vourcher-series/tenant-voucher-serie.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { InvoicesModule } from './invoices/invoices.module';
     }),
     UsersModule,
     TenantsModule,
+    TenantVoucherSeriesModule,
     AuthModule,
     RoomTypesModule,
     RoomsModule,
