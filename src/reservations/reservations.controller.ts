@@ -98,15 +98,14 @@ export class ReservationsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'List of reservations for calendar grid (includes both nightly and hourly reservations)',
+    description: 'List of reservations for calendar grid',
     schema: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           publicId: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440000' },
-          roomPublicId: { type: 'string', example: '0e4c47ba-b3fc-49b6-ae41-a174334bb525' },
-          reservationType: { type: 'string', enum: ['nightly', 'hourly'], example: 'nightly' },
+          roomPublicId: { type: 'string', example: '0e4c47ba-b3fc-49b6-ae41-a174334bb525', nullable: true },
           guest: {
             type: 'object',
             properties: {
@@ -119,15 +118,15 @@ export class ReservationsController {
           },
           checkInDate: { type: 'string', example: '2025-11-08' },
           checkOutDate: { type: 'string', example: '2025-11-11' },
+          checkInTime: { type: 'string', example: '2025-11-08T14:00:00Z', nullable: true, description: 'Hora real de entrada' },
+          checkOutTime: { type: 'string', example: '2025-11-11T10:00:00Z', nullable: true, description: 'Hora real de salida' },
           status: { type: 'string', example: 'confirmed' },
-          nights: { type: 'number', example: 3, nullable: true, description: 'For nightly reservations' },
-          hours: { type: 'number', example: 3, nullable: true, description: 'For hourly reservations' },
-          hourlyStartTime: { type: 'string', example: '2025-11-08T14:00:00Z', nullable: true, description: 'For hourly reservations' },
-          hourlyEndTime: { type: 'string', example: '2025-11-08T17:00:00Z', nullable: true, description: 'For hourly reservations' },
-          ratePerNight: { type: 'string', example: '60.00', nullable: true, description: 'For nightly reservations' },
-          ratePerHour: { type: 'string', example: '25.00', nullable: true, description: 'For hourly reservations' },
-          numberOfGuests: { type: 'number', example: 2 },
-          totalAmount: { type: 'string', example: '180.00' },
+          nights: { type: 'number', example: 3, nullable: true },
+          hours: { type: 'number', example: 5, nullable: true, description: 'Opcional' },
+          appliedRate: { type: 'string', example: '150.00', nullable: true, description: 'Tarifa aplicada' },
+          adults: { type: 'number', example: 2 },
+          children: { type: 'number', example: 0 },
+          totalAmount: { type: 'string', example: '450.00' },
           notes: { type: 'string', nullable: true },
           createdAt: { type: 'string', example: '2025-11-01T10:30:00.000Z' },
           updatedAt: { type: 'string', example: '2025-11-01T10:30:00.000Z' },

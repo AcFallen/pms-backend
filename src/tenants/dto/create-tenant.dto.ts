@@ -8,10 +8,14 @@ import {
   IsNumber,
   Min,
   Length,
+  Matches,
+  IsDecimal,
 } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TenantStatus } from '../enums/tenant-status.enum';
 import { TenantPlan } from '../enums/tenant-plan.enum';
+import { BillingMode } from '../enums/billing-mode.enum';
+import { CheckoutPolicy } from '../enums/checkout-policy.enum';
 
 export class CreateTenantDto {
   @ApiProperty({
@@ -142,6 +146,51 @@ export class CreateTenantDto {
   @IsOptional()
   @Min(1)
   maxRooms?: number;
+
+  @ApiProperty({
+    description: 'Billing mode: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
+    enum: BillingMode,
+    example: BillingMode.FIXED_PRICE,
+    default: BillingMode.FIXED_PRICE,
+    required: false,
+  })
+  @IsEnum(BillingMode)
+  @IsOptional()
+  billingMode?: BillingMode;
+
+  @ApiProperty({
+    description: 'Checkout policy: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
+    enum: CheckoutPolicy,
+    example: CheckoutPolicy.FIXED_TIME,
+    default: CheckoutPolicy.FIXED_TIME,
+    required: false,
+  })
+  @IsEnum(CheckoutPolicy)
+  @IsOptional()
+  checkoutPolicy?: CheckoutPolicy;
+
+  @ApiProperty({
+    description: 'Checkout time (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
+    example: '12:00:00',
+    pattern: '^([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)$',
+    required: false,
+  })
+  @IsString()
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):([0-5]\d):([0-5]\d)$/, {
+    message: 'checkoutTime must be in HH:mm:ss format',
+  })
+  checkoutTime?: string;
+
+  @ApiProperty({
+    description: 'Late checkout fee (cargo adicional por checkout tardío)',
+    example: '20.00',
+    type: String,
+    required: false,
+  })
+  @IsOptional()
+  @IsDecimal({ decimal_digits: '2' })
+  lateCheckoutFee?: string;
 
   // Logo fields are managed via file upload, not through DTO
   logoUrl?: string;
