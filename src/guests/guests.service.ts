@@ -3,7 +3,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
+import { FilterGuestsDto } from './dto/filter-guests.dto';
 import { Guest } from './entities/guest.entity';
+import { PaginatedGuests } from './interfaces/paginated-guests.interface';
 
 @Injectable()
 export class GuestsService {
@@ -34,11 +36,47 @@ export class GuestsService {
     return await this.guestRepository.save(guest);
   }
 
-  async findAll(tenantId: number): Promise<Guest[]> {
-    return await this.guestRepository.find({
-      where: { tenantId },
-      order: { lastName: 'ASC', firstName: 'ASC' },
-    });
+  async findAll(
+    tenantId: number,
+    filterDto: FilterGuestsDto,
+  ): Promise<PaginatedGuests> {
+    const { search, page = 1, limit = 10 } = filterDto;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.guestRepository
+      .createQueryBuilder('guest')
+      .where('guest.tenantId = :tenantId', { tenantId });
+
+    // Apply search filter if provided
+    if (search) {
+      queryBuilder.andWhere(
+        '(guest.firstName ILIKE :search OR guest.lastName ILIKE :search OR guest.email ILIKE :search OR guest.phone ILIKE :search OR guest.documentNumber ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    // Get total count
+    const total = await queryBuilder.getCount();
+
+    // Apply pagination and ordering
+    const guests = await queryBuilder
+      .orderBy('guest.lastName', 'ASC')
+      .addOrderBy('guest.firstName', 'ASC')
+      .skip(skip)
+      .take(limit)
+      .getMany();
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data: guests,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
   }
 
   async findOne(id: number, tenantId: number): Promise<Guest> {
@@ -61,8 +99,12 @@ export class GuestsService {
     return guest;
   }
 
-  async update(id: number, updateGuestDto: UpdateGuestDto, tenantId: number): Promise<Guest> {
-    const guest = await this.findOne(id, tenantId);
+  async updateByPublicId(
+    publicId: string,
+    updateGuestDto: UpdateGuestDto,
+    tenantId: number,
+  ): Promise<Guest> {
+    const guest = await this.findByPublicId(publicId, tenantId);
 
     // Check if document is being updated and if it already exists
     if (
@@ -88,8 +130,26 @@ export class GuestsService {
     return await this.guestRepository.save(guest);
   }
 
-  async remove(id: number, tenantId: number): Promise<void> {
-    const guest = await this.findOne(id, tenantId);
-    await this.guestRepository.remove(guest);
+  async removeByPublicId(publicId: string, tenantId: number): Promise<void> {
+    const guest = await this.findByPublicId(publicId, tenantId);
+    await this.guestRepository.softRemove(guest);
+  }
+
+  async restoreByPublicId(publicId: string, tenantId: number): Promise<Guest> {
+    const guest = await this.guestRepository.findOne({
+      where: { publicId, tenantId },
+      withDeleted: true,
+    });
+
+    if (!guest) {
+      throw new NotFoundException(`Guest with public ID ${publicId} not found`);
+    }
+
+    if (!guest.deletedAt) {
+      throw new ConflictException('Guest is not deleted');
+    }
+
+    await this.guestRepository.restore({ publicId });
+    return this.findByPublicId(publicId, tenantId);
   }
 }
