@@ -6,6 +6,8 @@ import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { Reservation } from './entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
+import { Guest } from '../guests/entities/guest.entity';
+import { RoomType } from '../room-types/entities/room-type.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
 
 @Injectable()
@@ -15,6 +17,10 @@ export class ReservationsService {
     private readonly reservationRepository: Repository<Reservation>,
     @InjectRepository(Room)
     private readonly roomRepository: Repository<Room>,
+    @InjectRepository(Guest)
+    private readonly guestRepository: Repository<Guest>,
+    @InjectRepository(RoomType)
+    private readonly roomTypeRepository: Repository<RoomType>,
   ) {}
 
   async create(createReservationDto: CreateReservationDto, tenantId: number): Promise<Reservation> {
@@ -31,6 +37,49 @@ export class ReservationsService {
       );
     }
 
+    // Resolve guest publicId to internal ID
+    const guest = await this.guestRepository.findOne({
+      where: {
+        publicId: createReservationDto.guestPublicId,
+        tenantId,
+      },
+    });
+    if (!guest) {
+      throw new NotFoundException(
+        `Guest with publicId ${createReservationDto.guestPublicId} not found`,
+      );
+    }
+
+    // Resolve roomType publicId to internal ID
+    const roomType = await this.roomTypeRepository.findOne({
+      where: {
+        publicId: createReservationDto.roomTypePublicId,
+        tenantId,
+      },
+    });
+    if (!roomType) {
+      throw new NotFoundException(
+        `Room type with publicId ${createReservationDto.roomTypePublicId} not found`,
+      );
+    }
+
+    // Resolve room publicId to internal ID (if provided)
+    let roomId: number | null = null;
+    if (createReservationDto.roomPublicId) {
+      const room = await this.roomRepository.findOne({
+        where: {
+          publicId: createReservationDto.roomPublicId,
+          tenantId,
+        },
+      });
+      if (!room) {
+        throw new NotFoundException(
+          `Room with publicId ${createReservationDto.roomPublicId} not found`,
+        );
+      }
+      roomId = room.id;
+    }
+
     // Calculate nights if not provided
     let nights = createReservationDto.nights;
     if (!nights) {
@@ -41,8 +90,21 @@ export class ReservationsService {
     }
 
     const reservation = this.reservationRepository.create({
-      ...createReservationDto,
+      reservationCode: createReservationDto.reservationCode,
+      status: createReservationDto.status,
+      source: createReservationDto.source,
+      checkInDate: createReservationDto.checkInDate,
+      checkOutDate: createReservationDto.checkOutDate,
       nights,
+      hours: createReservationDto.hours,
+      adults: createReservationDto.adults,
+      children: createReservationDto.children,
+      appliedRate: createReservationDto.appliedRate,
+      totalAmount: createReservationDto.totalAmount,
+      notes: createReservationDto.notes,
+      guestId: guest.id,
+      roomTypeId: roomType.id,
+      roomId,
       tenantId,
     });
     return await this.reservationRepository.save(reservation);

@@ -14,29 +14,29 @@ import { ReservationSource } from '../enums/reservation-source.enum';
 
 export class CreateReservationDto {
   @ApiProperty({
-    description: 'Guest ID',
-    example: 1,
+    description: 'Guest public UUID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  guestId: number;
+  guestPublicId: string;
 
   @ApiProperty({
-    description: 'Room ID (optional, can be assigned later)',
-    example: 1,
+    description: 'Room public UUID (optional, can be assigned later)',
+    example: '0e4c47ba-b3fc-49b6-ae41-a174334bb525',
     required: false,
   })
-  @IsNumber()
+  @IsString()
   @IsOptional()
-  roomId?: number;
+  roomPublicId?: string;
 
   @ApiProperty({
-    description: 'Room type ID',
-    example: 1,
+    description: 'Room type public UUID',
+    example: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
   })
-  @IsNumber()
+  @IsString()
   @IsNotEmpty()
-  roomTypeId: number;
+  roomTypePublicId: string;
 
   @ApiProperty({
     description: 'Reservation code (unique)',
