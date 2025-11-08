@@ -53,14 +53,36 @@ export class Tenant {
   @Column({ type: 'varchar', length: 100, nullable: true })
   department: string | null;
 
-  @Column({ type: 'enum', enum: TenantStatus, nullable: false, default: TenantStatus.ACTIVE })
+  @Column({
+    type: 'enum',
+    enum: TenantStatus,
+    nullable: false,
+    default: TenantStatus.ACTIVE,
+  })
   status: TenantStatus;
 
-  @Column({ type: 'enum', enum: TenantPlan, nullable: false, default: TenantPlan.BASICO })
+  @Column({
+    type: 'enum',
+    enum: TenantPlan,
+    nullable: false,
+    default: TenantPlan.BASICO,
+  })
   plan: TenantPlan;
 
   @Column({ type: 'int', nullable: false, default: 10 })
   maxRooms: number;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  logoUrl: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  logoFileName: string | null;
+
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  logoMimeType: string | null;
+
+  @Column({ type: 'int', nullable: true })
+  logoFileSize: number | null;
 
   @OneToMany(() => User, (user) => user.tenant)
   users: User[];

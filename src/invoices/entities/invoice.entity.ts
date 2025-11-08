@@ -14,12 +14,14 @@ import { InvoiceType } from '../enums/invoice-type.enum';
 import { InvoiceStatus } from '../enums/invoice-status.enum';
 import { CustomerDocumentType } from '../enums/customer-document-type.enum';
 import { Folio } from '../../folios/entities/folio.entity';
+import { TenantVoucherSeries } from '../../tenants/entities/tenant-voucher-series.entity';
 
 @Entity('invoices')
 @Index(['tenantId', 'publicId'], { unique: true })
 @Index(['tenantId', 'series', 'number'], { unique: true })
 @Index(['tenantId', 'fullNumber'], { unique: true })
 @Index(['tenantId', 'folioId'])
+@Index(['tenantId', 'voucherSeriesId'])
 @Index(['tenantId', 'status'])
 @Index(['tenantId', 'issueDate'])
 export class Invoice {
@@ -41,6 +43,13 @@ export class Invoice {
   @ManyToOne(() => Folio)
   @JoinColumn({ name: 'folioId' })
   folio: Folio;
+
+  @Column({ type: 'int', nullable: true })
+  voucherSeriesId: number | null;
+
+  @ManyToOne(() => TenantVoucherSeries)
+  @JoinColumn({ name: 'voucherSeriesId' })
+  voucherSeries: TenantVoucherSeries | null;
 
   @Column({
     type: 'enum',

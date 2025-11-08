@@ -1,4 +1,14 @@
-import { IsString, IsEmail, IsNotEmpty, MaxLength, IsOptional, IsEnum, IsNumber, Min, Length } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsNotEmpty,
+  MaxLength,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  Min,
+  Length,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { TenantStatus } from '../enums/tenant-status.enum';
 import { TenantPlan } from '../enums/tenant-plan.enum';
@@ -132,4 +142,10 @@ export class CreateTenantDto {
   @IsOptional()
   @Min(1)
   maxRooms?: number;
+
+  // Logo fields are managed via file upload, not through DTO
+  logoUrl?: string;
+  logoFileName?: string;
+  logoMimeType?: string;
+  logoFileSize?: number;
 }

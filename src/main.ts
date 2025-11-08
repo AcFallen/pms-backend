@@ -8,9 +8,16 @@ import {
   AllExceptionsFilter,
 } from './common';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Serve static files from uploads directory
+  app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    prefix: '/uploads/',
+  });
 
   // Get Reflector instance for guards
   const reflector = app.get(Reflector);
@@ -63,6 +70,10 @@ async function bootstrap() {
     .addTag('cleaning-tasks', 'Cleaning task management endpoints')
     .addTag('product-categories', 'Product category management endpoints')
     .addTag('products', 'Product management endpoints')
+    .addTag(
+      'tenant-voucher-series',
+      'Tenant voucher series management endpoints',
+    )
     .addBearerAuth(
       {
         type: 'http',
