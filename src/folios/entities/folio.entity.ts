@@ -6,9 +6,12 @@ import {
   UpdateDateColumn,
   Index,
   Generated,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { FolioStatus } from '../enums/folio-status.enum';
+import { Reservation } from '../../reservations/entities/reservation.entity';
 
 @Entity('folios')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -30,6 +33,10 @@ export class Folio {
 
   @Column({ type: 'int', nullable: false })
   reservationId: number;
+
+  @ManyToOne(() => Reservation, (reservation) => reservation.folios)
+  @JoinColumn({ name: 'reservationId' })
+  reservation: Reservation;
 
   @Column({ type: 'varchar', length: 20, nullable: false, unique: true })
   folioNumber: string;
