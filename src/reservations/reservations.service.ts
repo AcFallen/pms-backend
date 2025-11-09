@@ -10,6 +10,7 @@ import { Room } from '../rooms/entities/room.entity';
 import { Guest } from '../guests/entities/guest.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
+import { RoomStatus } from '../rooms/enums/room-status.enum';
 
 @Injectable()
 export class ReservationsService {
@@ -108,7 +109,18 @@ export class ReservationsService {
       roomId,
       tenantId,
     });
-    return await this.reservationRepository.save(reservation);
+
+    const savedReservation = await this.reservationRepository.save(reservation);
+
+    // Update room status to OCCUPIED if checking in with assigned room
+    if (savedReservation.status === ReservationStatus.CHECKED_IN && roomId) {
+      await this.roomRepository.update(
+        { id: roomId, tenantId },
+        { status: RoomStatus.OCCUPIED },
+      );
+    }
+
+    return savedReservation;
   }
 
   async findAll(tenantId: number): Promise<Reservation[]> {
@@ -177,8 +189,41 @@ export class ReservationsService {
       }
     }
 
+    const oldStatus = reservation.status;
+    const oldRoomId = reservation.roomId;
+
     Object.assign(reservation, updateReservationDto);
-    return await this.reservationRepository.save(reservation);
+    const updatedReservation = await this.reservationRepository.save(reservation);
+
+    // Handle room status changes when reservation status changes
+    const newStatus = updatedReservation.status;
+    const newRoomId = updatedReservation.roomId;
+
+    // Update room to OCCUPIED if status changed to CHECKED_IN and room is assigned
+    if (
+      newStatus === ReservationStatus.CHECKED_IN &&
+      oldStatus !== ReservationStatus.CHECKED_IN &&
+      newRoomId
+    ) {
+      await this.roomRepository.update(
+        { id: newRoomId, tenantId },
+        { status: RoomStatus.OCCUPIED },
+      );
+    }
+
+    // Update room to AVAILABLE if status changed from CHECKED_IN to CHECKED_OUT
+    if (
+      newStatus === ReservationStatus.CHECKED_OUT &&
+      oldStatus === ReservationStatus.CHECKED_IN &&
+      oldRoomId
+    ) {
+      await this.roomRepository.update(
+        { id: oldRoomId, tenantId },
+        { status: RoomStatus.AVAILABLE },
+      );
+    }
+
+    return updatedReservation;
   }
 
   async remove(id: number, tenantId: number): Promise<void> {
