@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
+import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
 import { Reservation } from './entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
 import { Guest } from '../guests/entities/guest.entity';
@@ -188,7 +189,7 @@ export class ReservationsService {
   async findForCalendar(
     filterDto: FilterCalendarReservationsDto,
     tenantId: number,
-  ): Promise<Reservation[]> {
+  ): Promise<CalendarReservationResponseDto[]> {
     const { startDate, endDate, roomPublicId } = filterDto;
 
     // Validate date range
@@ -209,9 +210,9 @@ export class ReservationsService {
         cancelledStatus: ReservationStatus.CANCELLED,
       })
       // Find reservations that overlap with the date range
-      // A reservation overlaps if: checkInDate < endDate AND checkOutDate > startDate
-      .andWhere('reservation.checkInDate < :endDate', { endDate })
-      .andWhere('reservation.checkOutDate > :startDate', { startDate });
+      // A reservation overlaps if: checkInDate <= endDate AND checkOutDate >= startDate
+      .andWhere('reservation.checkInDate <= :endDate', { endDate })
+      .andWhere('reservation.checkOutDate >= :startDate', { startDate });
 
     // Filter by room if provided
     if (roomPublicId) {
@@ -221,6 +222,26 @@ export class ReservationsService {
     // Order by check-in date
     queryBuilder.orderBy('reservation.checkInDate', 'ASC');
 
-    return await queryBuilder.getMany();
+    const reservations = await queryBuilder.getMany();
+
+    // Transform to simplified DTO for frontend calendar
+    return reservations.map((reservation) => {
+      // TypeORM returns date columns as strings (YYYY-MM-DD format from PostgreSQL date type)
+      const checkInDate = typeof reservation.checkInDate === 'string'
+        ? reservation.checkInDate
+        : reservation.checkInDate.toISOString().split('T')[0];
+
+      const checkOutDate = typeof reservation.checkOutDate === 'string'
+        ? reservation.checkOutDate
+        : reservation.checkOutDate.toISOString().split('T')[0];
+
+      return {
+        publicId: reservation.publicId,
+        publicRoomId: reservation.room?.publicId || null,
+        guestName: `${reservation.guest.firstName} ${reservation.guest.lastName}`.trim(),
+        checkIn: checkInDate,
+        checkOut: checkOutDate,
+      };
+    });
   }
 }

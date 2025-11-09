@@ -7,6 +7,7 @@ import {
   Index,
   Generated,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
@@ -14,6 +15,7 @@ import { Tenant } from '../../tenants/entities/tenant.entity';
 import { Guest } from '../../guests/entities/guest.entity';
 import { Room } from '../../rooms/entities/room.entity';
 import { RoomType } from '../../room-types/entities/room-type.entity';
+import { Folio } from '../../folios/entities/folio.entity';
 import { ReservationStatus } from '../enums/reservation-status.enum';
 import { ReservationSource } from '../enums/reservation-source.enum';
 
@@ -63,6 +65,9 @@ export class Reservation {
   @ManyToOne(() => RoomType)
   @JoinColumn({ name: 'roomTypeId' })
   roomType: RoomType;
+
+  @OneToMany(() => Folio, (folio) => folio.reservation)
+  folios: Folio[];
 
   @Column({ type: 'varchar', length: 20, unique: true, nullable: false })
   reservationCode: string;

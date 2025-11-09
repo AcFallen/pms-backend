@@ -23,6 +23,7 @@ import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
+import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
 import { Reservation } from './entities/reservation.entity';
 import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 
@@ -73,7 +74,7 @@ export class ReservationsController {
   @Get('calendar-reservations')
   @ApiOperation({
     summary: 'Get reservations for calendar grid',
-    description: 'Retrieves reservations within a specific date range for the calendar view. Excludes cancelled reservations. Optimized for frontend calendar grid rendering.',
+    description: 'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
   })
   @ApiQuery({
     name: 'startDate',
@@ -98,41 +99,8 @@ export class ReservationsController {
   })
   @ApiResponse({
     status: 200,
-    description: 'List of reservations for calendar grid',
-    schema: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          publicId: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440000' },
-          roomPublicId: { type: 'string', example: '0e4c47ba-b3fc-49b6-ae41-a174334bb525', nullable: true },
-          guest: {
-            type: 'object',
-            properties: {
-              publicId: { type: 'string' },
-              firstName: { type: 'string' },
-              lastName: { type: 'string' },
-              documentType: { type: 'string' },
-              documentNumber: { type: 'string' },
-            },
-          },
-          checkInDate: { type: 'string', example: '2025-11-08' },
-          checkOutDate: { type: 'string', example: '2025-11-11' },
-          checkInTime: { type: 'string', example: '2025-11-08T14:00:00Z', nullable: true, description: 'Hora real de entrada' },
-          checkOutTime: { type: 'string', example: '2025-11-11T10:00:00Z', nullable: true, description: 'Hora real de salida' },
-          status: { type: 'string', example: 'confirmed' },
-          nights: { type: 'number', example: 3, nullable: true },
-          hours: { type: 'number', example: 5, nullable: true, description: 'Opcional' },
-          appliedRate: { type: 'string', example: '150.00', nullable: true, description: 'Tarifa aplicada' },
-          adults: { type: 'number', example: 2 },
-          children: { type: 'number', example: 0 },
-          totalAmount: { type: 'string', example: '450.00' },
-          notes: { type: 'string', nullable: true },
-          createdAt: { type: 'string', example: '2025-11-01T10:30:00.000Z' },
-          updatedAt: { type: 'string', example: '2025-11-01T10:30:00.000Z' },
-        },
-      },
-    },
+    description: 'List of simplified reservations for calendar grid',
+    type: [CalendarReservationResponseDto],
   })
   @ApiResponse({
     status: 400,
