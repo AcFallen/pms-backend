@@ -7,6 +7,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { TenantConfigResponseDto } from './dto/tenant-config-response.dto';
 import { Tenant } from './entities/tenant.entity';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
@@ -144,5 +145,19 @@ export class TenantsService {
     }
 
     return tenant;
+  }
+
+  /**
+   * Obtiene solo la configuración de facturación y checkout del tenant
+   */
+  async getConfig(id: number): Promise<TenantConfigResponseDto> {
+    const tenant = await this.findOne(id);
+
+    return {
+      billingMode: tenant.billingMode,
+      checkoutPolicy: tenant.checkoutPolicy,
+      checkoutTime: tenant.checkoutTime,
+      lateCheckoutFee: tenant.lateCheckoutFee,
+    };
   }
 }

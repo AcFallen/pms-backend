@@ -74,6 +74,20 @@ export class RoomsController {
     return this.roomsService.findAll(user.tenantId);
   }
 
+  @Get('available-clean')
+  @ApiOperation({
+    summary: 'Get available and clean rooms',
+    description: 'Retrieves all rooms that are available and clean for the authenticated tenant. Useful for quickly finding rooms ready for immediate check-in.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of available and clean rooms',
+    type: [Room],
+  })
+  findAvailableAndClean(@CurrentUser() user: CurrentUserData) {
+    return this.roomsService.findAvailableAndClean(user.tenantId);
+  }
+
   @Get('calendar-sidebar')
   @ApiOperation({
     summary: 'Get rooms for calendar sidebar with filters',

@@ -6,6 +6,8 @@ import { UpdateRoomDto } from './dto/update-room.dto';
 import { FilterRoomsDto } from './dto/filter-rooms.dto';
 import { Room } from './entities/room.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
+import { RoomStatus } from './enums/room-status.enum';
+import { CleaningStatus } from './enums/cleaning-status.enum';
 
 @Injectable()
 export class RoomsService {
@@ -87,6 +89,18 @@ export class RoomsService {
     queryBuilder.orderBy('room.roomNumber', 'ASC');
 
     return await queryBuilder.getMany();
+  }
+
+  async findAvailableAndClean(tenantId: number): Promise<Room[]> {
+    return await this.roomRepository.find({
+      where: {
+        tenantId,
+        status: RoomStatus.AVAILABLE,
+        cleaningStatus: CleaningStatus.CLEAN,
+      },
+      relations: ['roomType'],
+      order: { roomNumber: 'ASC' },
+    });
   }
 
   async findOne(id: number, tenantId: number): Promise<Room> {

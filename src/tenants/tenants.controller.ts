@@ -27,6 +27,7 @@ import {
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { TenantConfigResponseDto } from './dto/tenant-config-response.dto';
 import { Tenant } from './entities/tenant.entity';
 import {
   CurrentUser,
@@ -140,6 +141,24 @@ export class TenantsController {
   })
   getCurrentTenant(@CurrentUser() user: CurrentUserData) {
     return this.tenantsService.findOne(user.tenantId);
+  }
+
+  @Get('config')
+  @ApiOperation({
+    summary: 'Get current tenant configuration',
+    description: 'Retrieves only the billing and checkout configuration for the authenticated tenant',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant configuration retrieved successfully',
+    type: TenantConfigResponseDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Tenant not found',
+  })
+  getConfig(@CurrentUser() user: CurrentUserData) {
+    return this.tenantsService.getConfig(user.tenantId);
   }
 
   @Get()
