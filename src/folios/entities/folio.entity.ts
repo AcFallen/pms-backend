@@ -7,11 +7,13 @@ import {
   Index,
   Generated,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { FolioStatus } from '../enums/folio-status.enum';
 import { Reservation } from '../../reservations/entities/reservation.entity';
+import { Payment } from '../../payments/entities/payment.entity';
 
 @Entity('folios')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -37,6 +39,9 @@ export class Folio {
   @ManyToOne(() => Reservation, (reservation) => reservation.folios)
   @JoinColumn({ name: 'reservationId' })
   reservation: Reservation;
+
+  @OneToMany(() => Payment, (payment) => payment.folio)
+  payments: Payment[];
 
   @Column({ type: 'varchar', length: 20, nullable: false, unique: true })
   folioNumber: string;

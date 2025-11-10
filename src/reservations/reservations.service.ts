@@ -202,8 +202,33 @@ export class ReservationsService {
         'roomType.name',
         'roomType.description',
       ])
+      .leftJoin('reservation.folios', 'folio')
+      .addSelect([
+        'folio.publicId',
+        'folio.folioNumber',
+        'folio.status',
+        'folio.subtotal',
+        'folio.tax',
+        'folio.total',
+        'folio.balance',
+        'folio.notes',
+        'folio.closedAt',
+        'folio.createdAt',
+        'folio.updatedAt',
+      ])
+      .leftJoin('folio.payments', 'payment')
+      .addSelect([
+        'payment.publicId',
+        'payment.paymentMethod',
+        'payment.amount',
+        'payment.referenceNumber',
+        'payment.paymentDate',
+        'payment.notes',
+        'payment.createdAt',
+      ])
       .where('reservation.publicId = :publicId', { publicId })
       .andWhere('reservation.tenantId = :tenantId', { tenantId })
+      .orderBy('payment.paymentDate', 'DESC')
       .getOne();
 
     if (!reservation) {

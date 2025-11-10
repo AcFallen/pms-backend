@@ -33,7 +33,7 @@ export class Payment {
   @Column({ type: 'int', nullable: false })
   folioId: number;
 
-  @ManyToOne(() => Folio)
+  @ManyToOne(() => Folio, (folio) => folio.payments)
   @JoinColumn({ name: 'folioId' })
   folio: Folio;
 
