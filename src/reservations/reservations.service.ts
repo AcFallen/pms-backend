@@ -26,6 +26,9 @@ import { TaskStatus } from '../cleaning-tasks/enums/task-status.enum';
 import { TaskPriority } from '../cleaning-tasks/enums/task-priority.enum';
 import { TaskType } from '../cleaning-tasks/enums/task-type.enum';
 import { CheckoutReservationDto } from './dto/checkout-reservation.dto';
+import { FilterReservationsDto } from './dto/filter-reservations.dto';
+import { PaginatedReservationsResponseDto } from './dto/paginated-reservations-response.dto';
+import { ReservationListItemDto } from './dto/reservation-list-item.dto';
 
 @Injectable()
 export class ReservationsService {
@@ -143,12 +146,89 @@ export class ReservationsService {
     return savedReservation;
   }
 
-  async findAll(tenantId: number): Promise<Reservation[]> {
-    return await this.reservationRepository.find({
-      where: { tenantId },
-      relations: ['guest', 'room', 'roomType'],
-      order: { checkInDate: 'DESC', createdAt: 'DESC' },
-    });
+  async findAll(
+    tenantId: number,
+    filters: FilterReservationsDto,
+  ): Promise<PaginatedReservationsResponseDto> {
+    const { page = 1, limit = 10, checkInDate, checkInStartDate, checkInEndDate, status, search } = filters;
+
+    // Build query for data retrieval - use leftJoinAndSelect to load relations
+    const query = this.reservationRepository
+      .createQueryBuilder('reservation')
+      .leftJoinAndSelect('reservation.guest', 'guest')
+      .leftJoinAndSelect('reservation.room', 'room')
+      .where('reservation.tenantId = :tenantId', { tenantId });
+
+    // Apply filters
+    if (checkInDate) {
+      query.andWhere('DATE(reservation.checkInDate) = :checkInDate', {
+        checkInDate,
+      });
+    }
+
+    if (checkInStartDate && checkInEndDate) {
+      query.andWhere(
+        'DATE(reservation.checkInDate) BETWEEN :checkInStartDate AND :checkInEndDate',
+        {
+          checkInStartDate,
+          checkInEndDate,
+        },
+      );
+    }
+
+    if (status) {
+      query.andWhere('reservation.status = :status', { status });
+    }
+
+    if (search) {
+      query.andWhere(
+        "(guest.firstName ILIKE :search OR guest.lastName ILIKE :search OR CONCAT(guest.firstName, ' ', guest.lastName) ILIKE :search OR guest.documentNumber ILIKE :search)",
+        { search: `%${search}%` },
+      );
+    }
+
+    // Order by check-in date descending, then creation date
+    query.orderBy('reservation.checkInDate', 'DESC').addOrderBy('reservation.createdAt', 'DESC');
+
+    // Apply pagination
+    const skip = (page - 1) * limit;
+    query.skip(skip).take(limit);
+
+    // Execute query - getManyAndCount returns [data, total] in one query
+    const [reservations, total] = await query.getManyAndCount();
+
+    // Transform to DTO
+    const data: ReservationListItemDto[] = reservations.map((reservation) => ({
+      publicId: reservation.publicId,
+      reservationCode: reservation.reservationCode,
+      guestFullName: `${reservation.guest.firstName} ${reservation.guest.lastName}`,
+      guestDocument: reservation.guest.documentNumber,
+      checkInDate: reservation.checkInDate instanceof Date
+        ? reservation.checkInDate.toISOString().split('T')[0]
+        : reservation.checkInDate,
+      checkOutDate: reservation.checkOutDate instanceof Date
+        ? reservation.checkOutDate.toISOString().split('T')[0]
+        : reservation.checkOutDate,
+      roomNumber: reservation.room?.roomNumber || 'N/A',
+      nights: reservation.nights ?? 0,
+      hours: reservation.hours,
+      totalAmount: parseFloat(reservation.totalAmount.toString()),
+      status: reservation.status,
+      createdAt: reservation.createdAt,
+    }));
+
+    // Calculate total pages
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+      },
+    };
   }
 
   async findOne(id: number, tenantId: number): Promise<Reservation> {

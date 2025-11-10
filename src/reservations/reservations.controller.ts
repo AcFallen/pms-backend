@@ -25,7 +25,10 @@ import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { CheckoutReservationDto } from './dto/checkout-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
+import { FilterReservationsDto } from './dto/filter-reservations.dto';
+import { PaginatedReservationsResponseDto } from './dto/paginated-reservations-response.dto';
 import { Reservation } from './entities/reservation.entity';
+import { ReservationStatus } from './enums/reservation-status.enum';
 import {
   CurrentUser,
   CurrentUserData,
@@ -67,17 +70,69 @@ export class ReservationsController {
 
   @Get()
   @ApiOperation({
-    summary: 'Get all reservations',
+    summary: 'Get all reservations with pagination and filters',
     description:
-      'Retrieves all reservations for the authenticated tenant, ordered by check-in date',
+      'Retrieves all reservations for the authenticated tenant with optional filters and pagination. Supports filtering by check-in date (exact or range), status, guest name, and document number. Returns paginated results with optimized data structure.',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'checkInDate',
+    required: false,
+    type: String,
+    description: 'Exact check-in date filter (YYYY-MM-DD)',
+    example: '2025-11-10',
+  })
+  @ApiQuery({
+    name: 'checkInStartDate',
+    required: false,
+    type: String,
+    description: 'Check-in date range start (YYYY-MM-DD)',
+    example: '2025-11-01',
+  })
+  @ApiQuery({
+    name: 'checkInEndDate',
+    required: false,
+    type: String,
+    description: 'Check-in date range end (YYYY-MM-DD)',
+    example: '2025-11-30',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ReservationStatus,
+    description: 'Filter by reservation status',
+    example: ReservationStatus.CHECKED_IN,
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by guest information (first name, last name, full name, or document number)',
+    example: 'John',
   })
   @ApiResponse({
     status: 200,
-    description: 'List of reservations retrieved successfully',
-    type: [Reservation],
+    description: 'Paginated list of reservations retrieved successfully',
+    type: PaginatedReservationsResponseDto,
   })
-  findAll(@CurrentUser() user: CurrentUserData) {
-    return this.reservationsService.findAll(user.tenantId);
+  findAll(
+    @Query() filters: FilterReservationsDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.reservationsService.findAll(user.tenantId, filters);
   }
 
   @Get('calendar-reservations')
