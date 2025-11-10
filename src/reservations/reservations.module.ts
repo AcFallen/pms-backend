@@ -6,9 +6,11 @@ import { Reservation } from './entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
 import { Guest } from '../guests/entities/guest.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
+import { Folio } from '../folios/entities/folio.entity';
+import { Payment } from '../payments/entities/payment.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Reservation, Room, Guest, RoomType])],
+  imports: [TypeOrmModule.forFeature([Reservation, Room, Guest, RoomType, Folio, Payment])],
   controllers: [ReservationsController],
   providers: [ReservationsService],
   exports: [ReservationsService],

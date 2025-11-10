@@ -25,7 +25,10 @@ import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
 import { Reservation } from './entities/reservation.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('reservations')
 @ApiBearerAuth('JWT-auth')
@@ -37,7 +40,8 @@ export class ReservationsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new reservation',
-    description: 'Creates a new reservation for the authenticated tenant. El sistema calcula automáticamente las noches si no se proporcionan. El cobro y la política de checkout dependen de la configuración del tenant.',
+    description:
+      'Creates a new reservation for the authenticated tenant. El sistema calcula automáticamente las noches si no se proporcionan. El cobro y la política de checkout dependen de la configuración del tenant.',
   })
   @ApiBody({ type: CreateReservationDto })
   @ApiResponse({
@@ -53,14 +57,18 @@ export class ReservationsController {
     status: 409,
     description: 'Reservation code already exists',
   })
-  create(@Body() createReservationDto: CreateReservationDto, @CurrentUser() user: any) {
+  create(
+    @Body() createReservationDto: CreateReservationDto,
+    @CurrentUser() user: any,
+  ) {
     return this.reservationsService.create(createReservationDto, user.tenantId);
   }
 
   @Get()
   @ApiOperation({
     summary: 'Get all reservations',
-    description: 'Retrieves all reservations for the authenticated tenant, ordered by check-in date',
+    description:
+      'Retrieves all reservations for the authenticated tenant, ordered by check-in date',
   })
   @ApiResponse({
     status: 200,
@@ -74,7 +82,8 @@ export class ReservationsController {
   @Get('calendar-reservations')
   @ApiOperation({
     summary: 'Get reservations for calendar grid',
-    description: 'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
+    description:
+      'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
   })
   @ApiQuery({
     name: 'startDate',
@@ -133,7 +142,10 @@ export class ReservationsController {
     status: 404,
     description: 'Reservation not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+  findByPublicId(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: any,
+  ) {
     return this.reservationsService.findByPublicId(publicId, user.tenantId);
   }
 
@@ -157,8 +169,14 @@ export class ReservationsController {
     status: 404,
     description: 'Reservation not found',
   })
-  findByReservationCode(@Param('reservationCode') reservationCode: string, @CurrentUser() user: any) {
-    return this.reservationsService.findByReservationCode(reservationCode, user.tenantId);
+  findByReservationCode(
+    @Param('reservationCode') reservationCode: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.reservationsService.findByReservationCode(
+      reservationCode,
+      user.tenantId,
+    );
   }
 
   @Get(':id')
@@ -219,7 +237,11 @@ export class ReservationsController {
     @Body() updateReservationDto: UpdateReservationDto,
     @CurrentUser() user: any,
   ) {
-    return this.reservationsService.update(+id, updateReservationDto, user.tenantId);
+    return this.reservationsService.update(
+      +id,
+      updateReservationDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':id')

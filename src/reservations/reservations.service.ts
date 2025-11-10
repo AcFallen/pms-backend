@@ -1,6 +1,11 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
@@ -9,8 +14,12 @@ import { Reservation } from './entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
 import { Guest } from '../guests/entities/guest.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
+import { Folio } from '../folios/entities/folio.entity';
+import { Payment } from '../payments/entities/payment.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
 import { RoomStatus } from '../rooms/enums/room-status.enum';
+import { FolioStatus } from '../folios/enums/folio-status.enum';
+import { ReservationSource } from './enums/reservation-source.enum';
 
 @Injectable()
 export class ReservationsService {
@@ -23,9 +32,13 @@ export class ReservationsService {
     private readonly guestRepository: Repository<Guest>,
     @InjectRepository(RoomType)
     private readonly roomTypeRepository: Repository<RoomType>,
+    private readonly dataSource: DataSource,
   ) {}
 
-  async create(createReservationDto: CreateReservationDto, tenantId: number): Promise<Reservation> {
+  async create(
+    createReservationDto: CreateReservationDto,
+    tenantId: number,
+  ): Promise<Reservation> {
     // Check if reservation code already exists
     const existingReservation = await this.reservationRepository.findOne({
       where: {
@@ -142,24 +155,34 @@ export class ReservationsService {
     return reservation;
   }
 
-  async findByPublicId(publicId: string, tenantId: number): Promise<Reservation> {
+  async findByPublicId(
+    publicId: string,
+    tenantId: number,
+  ): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
       where: { publicId, tenantId },
       relations: ['guest', 'room', 'roomType'],
     });
     if (!reservation) {
-      throw new NotFoundException(`Reservation with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Reservation with public ID ${publicId} not found`,
+      );
     }
     return reservation;
   }
 
-  async findByReservationCode(reservationCode: string, tenantId: number): Promise<Reservation> {
+  async findByReservationCode(
+    reservationCode: string,
+    tenantId: number,
+  ): Promise<Reservation> {
     const reservation = await this.reservationRepository.findOne({
       where: { reservationCode, tenantId },
       relations: ['guest', 'room', 'roomType'],
     });
     if (!reservation) {
-      throw new NotFoundException(`Reservation with code ${reservationCode} not found`);
+      throw new NotFoundException(
+        `Reservation with code ${reservationCode} not found`,
+      );
     }
     return reservation;
   }
@@ -193,7 +216,8 @@ export class ReservationsService {
     const oldRoomId = reservation.roomId;
 
     Object.assign(reservation, updateReservationDto);
-    const updatedReservation = await this.reservationRepository.save(reservation);
+    const updatedReservation =
+      await this.reservationRepository.save(reservation);
 
     // Handle room status changes when reservation status changes
     const newStatus = updatedReservation.status;
@@ -272,18 +296,21 @@ export class ReservationsService {
     // Transform to simplified DTO for frontend calendar
     return reservations.map((reservation) => {
       // TypeORM returns date columns as strings (YYYY-MM-DD format from PostgreSQL date type)
-      const checkInDate = typeof reservation.checkInDate === 'string'
-        ? reservation.checkInDate
-        : reservation.checkInDate.toISOString().split('T')[0];
+      const checkInDate =
+        typeof reservation.checkInDate === 'string'
+          ? reservation.checkInDate
+          : reservation.checkInDate.toISOString().split('T')[0];
 
-      const checkOutDate = typeof reservation.checkOutDate === 'string'
-        ? reservation.checkOutDate
-        : reservation.checkOutDate.toISOString().split('T')[0];
+      const checkOutDate =
+        typeof reservation.checkOutDate === 'string'
+          ? reservation.checkOutDate
+          : reservation.checkOutDate.toISOString().split('T')[0];
 
       return {
         publicId: reservation.publicId,
         publicRoomId: reservation.room?.publicId || null,
-        guestName: `${reservation.guest.firstName} ${reservation.guest.lastName}`.trim(),
+        guestName:
+          `${reservation.guest.firstName} ${reservation.guest.lastName}`.trim(),
         checkIn: checkInDate,
         checkOut: checkOutDate,
       };
