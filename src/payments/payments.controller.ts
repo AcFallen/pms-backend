@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { CreatePaymentToFolioDto } from './dto/create-payment-to-folio.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { Payment } from './entities/payment.entity';
 import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
@@ -50,6 +51,34 @@ export class PaymentsController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.paymentsService.create(createPaymentDto, user.tenantId);
+  }
+
+  @Post('to-folio')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add payment to existing folio',
+    description:
+      'Creates a payment for an existing folio. Automatically updates folio balance and closes folio if balance reaches zero. Reference number is auto-generated if not provided.',
+  })
+  @ApiBody({ type: CreatePaymentToFolioDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Payment successfully created and folio updated',
+    type: Payment,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error or folio is closed',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Folio not found',
+  })
+  createPaymentToFolio(
+    @Body() dto: CreatePaymentToFolioDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.paymentsService.createPaymentToFolio(dto, user.tenantId);
   }
 
   @Get()
