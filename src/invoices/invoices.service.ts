@@ -279,9 +279,16 @@ export class InvoicesService {
       }
 
       // 7. Calculate totals (IGV 18%)
-      const subtotal = parseFloat(folio.subtotal.toString());
-      const igv = subtotal * 0.18;
-      const total = subtotal + igv;
+      // El folio.total incluye IGV (es el monto real cobrado)
+      // El folio.subtotal es sin IGV, folio.tax es el IGV
+      // Usar folio.total como fuente de verdad para evitar errores de redondeo
+      const totalConIGV = parseFloat(folio.total.toString());
+      const subtotalSinIGV = totalConIGV / 1.18;
+      const igv = totalConIGV - subtotalSinIGV;
+
+      const subtotal = parseFloat(subtotalSinIGV.toFixed(2));
+      const igvRounded = parseFloat(igv.toFixed(2));
+      const total = totalConIGV; // Usar el total original sin redondeo adicional
 
       // 8. Create invoice record (PENDING status)
       const invoice = queryRunner.manager.create(Invoice, {
@@ -297,7 +304,7 @@ export class InvoicesService {
         customerName,
         customerAddress,
         subtotal,
-        igv,
+        igv: igvRounded,
         total,
         status: InvoiceStatus.PENDING,
         issueDate: new Date(),
@@ -423,23 +430,29 @@ export class InvoicesService {
   ): NubefactItem[] {
     return charges.map((charge) => {
       const quantity = parseFloat(charge.quantity.toString());
-      const valorUnitario = parseFloat(charge.unitPrice.toString());
-      const precioUnitario = valorUnitario * 1.18; // With IGV
-      const subtotal = valorUnitario * quantity;
-      const igv = subtotal * 0.18;
-      const total = subtotal + igv;
+      // El total en la BD incluye IGV (es el precio real cobrado)
+      const totalConIGV = parseFloat(charge.total.toString());
+      const precioUnitarioConIGV = parseFloat(charge.unitPrice.toString());
 
+      // Calcular subtotal sin IGV (sin redondear intermedios para evitar errores de redondeo)
+      const subtotalSinIGV = totalConIGV / 1.18;
+      // Calcular IGV como diferencia (no como multiplicación) para mantener el total exacto
+      const igvCalculado = totalConIGV - subtotalSinIGV;
+      // Calcular valor unitario sin IGV
+      const valorUnitarioSinIGV = subtotalSinIGV / quantity;
+
+      // Redondear solo los valores finales que se envían a Nubefact
       return {
         unidad_de_medida: 'ZZ', // Servicio
         codigo: 'SERV-ALOJ',
         descripcion: charge.description,
         cantidad: quantity,
-        valor_unitario: valorUnitario,
-        precio_unitario: precioUnitario,
-        subtotal,
+        valor_unitario: parseFloat(valorUnitarioSinIGV.toFixed(2)),
+        precio_unitario: precioUnitarioConIGV,
+        subtotal: parseFloat(subtotalSinIGV.toFixed(2)),
         tipo_de_igv: 1, // Gravado
-        igv,
-        total,
+        igv: parseFloat(igvCalculado.toFixed(2)),
+        total: totalConIGV, // Usar el total original sin redondeo adicional
         anticipo_regularizacion: false,
       };
     });

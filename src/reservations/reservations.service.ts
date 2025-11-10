@@ -159,19 +159,22 @@ export class ReservationsService {
       const folioNumber = await this.generateFolioNumber(queryRunner, tenantId);
 
       // Create folio for the reservation
-      const folioTotal = parseFloat(
+      const folioTotalConIGV = parseFloat(
         createReservationDto.totalAmount.toString(),
       );
+      // Calcular subtotal sin IGV y el IGV (sin redondear intermedios para evitar errores de redondeo)
+      const folioSubtotalSinIGV = folioTotalConIGV / 1.18;
+      const folioTax = folioTotalConIGV - folioSubtotalSinIGV;
 
       const folio = new Folio();
       folio.tenantId = tenantId;
       folio.reservationId = savedReservation.id;
       folio.folioNumber = folioNumber;
       folio.status = FolioStatus.OPEN;
-      folio.subtotal = folioTotal;
-      folio.tax = 0;
-      folio.total = folioTotal;
-      folio.balance = folioTotal;
+      folio.subtotal = parseFloat(folioSubtotalSinIGV.toFixed(2)); // Sin IGV
+      folio.tax = parseFloat(folioTax.toFixed(2)); // IGV 18%
+      folio.total = folioTotalConIGV; // Con IGV (usar el valor original)
+      folio.balance = folioTotalConIGV;
       folio.notes = null;
 
       const savedFolio = await queryRunner.manager.save(folio);
@@ -181,10 +184,13 @@ export class ReservationsService {
         ? `${nights} noche(s) - Habitación ${room.roomNumber} (${roomType.name})`
         : `${nights} noche(s) - ${roomType.name}`;
 
-      const totalAmount = parseFloat(
+      const totalAmountConIGV = parseFloat(
         createReservationDto.totalAmount.toString(),
       );
-      const unitPrice = parseFloat((totalAmount / nights).toFixed(2));
+      // El unitPrice en la BD debe incluir IGV (así es como se manejan los precios)
+      const unitPriceConIGV = parseFloat(
+        (totalAmountConIGV / nights).toFixed(2),
+      );
 
       const folioCharge = queryRunner.manager.create(FolioCharge, {
         tenantId,
@@ -193,8 +199,8 @@ export class ReservationsService {
         productId: null,
         description: roomDescription,
         quantity: nights,
-        unitPrice,
-        total: totalAmount,
+        unitPrice: unitPriceConIGV, // Precio CON IGV incluido
+        total: totalAmountConIGV, // Total CON IGV incluido
         chargeDate: new Date(),
       });
 
