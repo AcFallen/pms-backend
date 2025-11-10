@@ -95,14 +95,14 @@ export class Reservation {
   checkOutDate: Date;
 
   @Column({
-    type: 'timestamp',
+    type: 'timestamptz',
     nullable: true,
     comment: 'Timestamp real de check-in (cuando el huésped entra)',
   })
   checkInTime: Date | null;
 
   @Column({
-    type: 'timestamp',
+    type: 'timestamptz',
     nullable: true,
     comment: 'Timestamp real de check-out (cuando el huésped sale)',
   })
@@ -149,9 +149,9 @@ export class Reservation {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }
