@@ -110,6 +110,7 @@ export class ReservationsService {
       source: createReservationDto.source,
       checkInDate: createReservationDto.checkInDate,
       checkOutDate: createReservationDto.checkOutDate,
+      checkInTime: createReservationDto.status === ReservationStatus.CHECKED_IN ? new Date() : null,
       nights,
       hours: createReservationDto.hours,
       adults: createReservationDto.adults,
@@ -158,16 +159,59 @@ export class ReservationsService {
   async findByPublicId(
     publicId: string,
     tenantId: number,
-  ): Promise<Reservation> {
-    const reservation = await this.reservationRepository.findOne({
-      where: { publicId, tenantId },
-      relations: ['guest', 'room', 'roomType'],
-    });
+  ): Promise<any> {
+    const reservation = await this.reservationRepository
+      .createQueryBuilder('reservation')
+      .select([
+        'reservation.publicId',
+        'reservation.reservationCode',
+        'reservation.status',
+        'reservation.source',
+        'reservation.checkInDate',
+        'reservation.checkOutDate',
+        'reservation.checkInTime',
+        'reservation.checkOutTime',
+        'reservation.nights',
+        'reservation.hours',
+        'reservation.adults',
+        'reservation.children',
+        'reservation.appliedRate',
+        'reservation.totalAmount',
+        'reservation.notes',
+        'reservation.createdAt',
+        'reservation.updatedAt',
+      ])
+      .leftJoin('reservation.guest', 'guest')
+      .addSelect([
+        'guest.publicId',
+        'guest.firstName',
+        'guest.lastName',
+        'guest.documentType',
+        'guest.documentNumber',
+        'guest.email',
+        'guest.phone',
+      ])
+      .leftJoin('reservation.room', 'room')
+      .addSelect([
+        'room.publicId',
+        'room.roomNumber',
+      ])
+      .leftJoin('reservation.roomType', 'roomType')
+      .addSelect([
+        'roomType.publicId',
+        'roomType.name',
+        'roomType.description',
+      ])
+      .where('reservation.publicId = :publicId', { publicId })
+      .andWhere('reservation.tenantId = :tenantId', { tenantId })
+      .getOne();
+
     if (!reservation) {
       throw new NotFoundException(
         `Reservation with public ID ${publicId} not found`,
       );
     }
+
     return reservation;
   }
 
@@ -216,6 +260,23 @@ export class ReservationsService {
     const oldRoomId = reservation.roomId;
 
     Object.assign(reservation, updateReservationDto);
+
+    // Set checkInTime if status is changing to CHECKED_IN
+    if (
+      updateReservationDto.status === ReservationStatus.CHECKED_IN &&
+      oldStatus !== ReservationStatus.CHECKED_IN
+    ) {
+      reservation.checkInTime = new Date();
+    }
+
+    // Set checkOutTime if status is changing to CHECKED_OUT
+    if (
+      updateReservationDto.status === ReservationStatus.CHECKED_OUT &&
+      oldStatus !== ReservationStatus.CHECKED_OUT
+    ) {
+      reservation.checkOutTime = new Date();
+    }
+
     const updatedReservation =
       await this.reservationRepository.save(reservation);
 
