@@ -20,7 +20,6 @@ import {
 import { FoliosService } from './folios.service';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
-import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
 import { AddPaymentToFolioDto } from './dto/add-payment-to-folio.dto';
 import { Folio } from './entities/folio.entity';
 import {

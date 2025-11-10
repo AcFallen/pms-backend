@@ -8,7 +8,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, QueryRunner } from 'typeorm';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
-import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
 import { AddPaymentToFolioDto } from './dto/add-payment-to-folio.dto';
 import { Folio } from './entities/folio.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
