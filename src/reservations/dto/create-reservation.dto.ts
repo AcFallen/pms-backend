@@ -87,7 +87,8 @@ export class CreateReservationDto {
   checkOutDate: string;
 
   @ApiPropertyOptional({
-    description: 'Number of nights (opcional, se puede calcular automáticamente)',
+    description:
+      'Number of nights (opcional, se puede calcular automáticamente)',
     example: 5,
   })
   @IsNumber()
@@ -127,7 +128,8 @@ export class CreateReservationDto {
   children?: number;
 
   @ApiPropertyOptional({
-    description: 'Tarifa aplicada (opcional, puede venir del precio de la habitación o configuración del tenant)',
+    description:
+      'Tarifa aplicada (opcional, puede venir del precio de la habitación o configuración del tenant)',
     example: '150.00',
   })
   @IsOptional()

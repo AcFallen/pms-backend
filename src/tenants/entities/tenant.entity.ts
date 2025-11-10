@@ -80,7 +80,8 @@ export class Tenant {
     enum: BillingMode,
     nullable: false,
     default: BillingMode.FIXED_PRICE,
-    comment: 'Modo de cobro: FIXED_PRICE (usa basePrice del room type) o MINIMUM_PRICE (usa minimumPrice del room type)',
+    comment:
+      'Modo de cobro: FIXED_PRICE (usa basePrice del room type) o MINIMUM_PRICE (usa minimumPrice del room type)',
   })
   billingMode: BillingMode;
 

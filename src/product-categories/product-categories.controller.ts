@@ -21,7 +21,10 @@ import { ProductCategoriesService } from './product-categories.service';
 import { CreateProductCategoryDto } from './dto/create-product-category.dto';
 import { UpdateProductCategoryDto } from './dto/update-product-category.dto';
 import { ProductCategory } from './entities/product-category.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
@@ -29,7 +32,9 @@ import { UserRole } from '../users/enums/user-role.enum';
 @ApiBearerAuth('JWT-auth')
 @Controller('product-categories')
 export class ProductCategoriesController {
-  constructor(private readonly productCategoriesService: ProductCategoriesService) {}
+  constructor(
+    private readonly productCategoriesService: ProductCategoriesService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -47,14 +52,21 @@ export class ProductCategoriesController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createProductCategoryDto: CreateProductCategoryDto, @CurrentUser() user: CurrentUserData) {
-    return this.productCategoriesService.create(createProductCategoryDto, user.tenantId);
+  create(
+    @Body() createProductCategoryDto: CreateProductCategoryDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.productCategoriesService.create(
+      createProductCategoryDto,
+      user.tenantId,
+    );
   }
 
   @Get()
   @ApiOperation({
     summary: 'Get all product categories',
-    description: 'Retrieves all product categories for the authenticated tenant, ordered by name',
+    description:
+      'Retrieves all product categories for the authenticated tenant, ordered by name',
   })
   @ApiResponse({
     status: 200,
@@ -85,8 +97,14 @@ export class ProductCategoriesController {
     status: 404,
     description: 'Product category not found',
   })
-  findOne(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
-    return this.productCategoriesService.findByPublicId(publicId, user.tenantId);
+  findOne(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.productCategoriesService.findByPublicId(
+      publicId,
+      user.tenantId,
+    );
   }
 
   @Patch(':publicId')
@@ -119,7 +137,11 @@ export class ProductCategoriesController {
     @Body() updateProductCategoryDto: UpdateProductCategoryDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.productCategoriesService.updateByPublicId(publicId, updateProductCategoryDto, user.tenantId);
+    return this.productCategoriesService.updateByPublicId(
+      publicId,
+      updateProductCategoryDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':publicId')
@@ -142,15 +164,22 @@ export class ProductCategoriesController {
     status: 404,
     description: 'Product category not found',
   })
-  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
-    return this.productCategoriesService.removeByPublicId(publicId, user.tenantId);
+  remove(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.productCategoriesService.removeByPublicId(
+      publicId,
+      user.tenantId,
+    );
   }
 
   @Patch(':publicId/restore')
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted product category (Admin only)',
-    description: 'Restores a soft-deleted product category by public UUID. Only accessible by ADMIN role.',
+    description:
+      'Restores a soft-deleted product category by public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',
@@ -171,7 +200,13 @@ export class ProductCategoriesController {
     status: 409,
     description: 'Product category is not deleted',
   })
-  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
-    return this.productCategoriesService.restoreByPublicId(publicId, user.tenantId);
+  restore(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.productCategoriesService.restoreByPublicId(
+      publicId,
+      user.tenantId,
+    );
   }
 }

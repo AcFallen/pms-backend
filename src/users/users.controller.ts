@@ -21,7 +21,10 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from './enums/user-role.enum';
 
@@ -35,7 +38,8 @@ export class UsersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new user',
-    description: 'Creates a new user with hashed password for the current tenant',
+    description:
+      'Creates a new user with hashed password for the current tenant',
   })
   @ApiBody({ type: CreateUserDto })
   @ApiResponse({
@@ -76,7 +80,8 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Get all users (Admin only)',
-    description: 'Retrieves a list of ALL users across all tenants. Only accessible by ADMIN role.',
+    description:
+      'Retrieves a list of ALL users across all tenants. Only accessible by ADMIN role.',
   })
   @ApiResponse({
     status: 200,
@@ -140,7 +145,10 @@ export class UsersController {
     status: 404,
     description: 'User not found',
   })
-  update(@Param('publicId') publicId: string, @Body() updateUserDto: UpdateUserDto) {
+  update(
+    @Param('publicId') publicId: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ) {
     return this.usersService.updateByPublicId(publicId, updateUserDto);
   }
 
@@ -148,7 +156,8 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Delete user by public ID (Soft Delete)',
-    description: 'Soft deletes a user by their public UUID. User can be restored later.',
+    description:
+      'Soft deletes a user by their public UUID. User can be restored later.',
   })
   @ApiParam({
     name: 'publicId',
@@ -172,7 +181,8 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted user (Admin only)',
-    description: 'Restores a soft-deleted user by their public UUID. Only accessible by ADMIN role.',
+    description:
+      'Restores a soft-deleted user by their public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',

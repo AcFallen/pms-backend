@@ -42,7 +42,8 @@ export class CreateRoomTypeDto {
   maxOccupancy?: number;
 
   @ApiProperty({
-    description: 'Base price (usado cuando el tenant tiene billingMode = FIXED_PRICE)',
+    description:
+      'Base price (usado cuando el tenant tiene billingMode = FIXED_PRICE)',
     example: '150.00',
     type: String,
   })
@@ -51,7 +52,8 @@ export class CreateRoomTypeDto {
   basePrice: string;
 
   @ApiProperty({
-    description: 'Minimum price (usado cuando el tenant tiene billingMode = MINIMUM_PRICE, el recepcionista cobra según criterio basándose en este mínimo)',
+    description:
+      'Minimum price (usado cuando el tenant tiene billingMode = MINIMUM_PRICE, el recepcionista cobra según criterio basándose en este mínimo)',
     example: '100.00',
     type: String,
     required: false,

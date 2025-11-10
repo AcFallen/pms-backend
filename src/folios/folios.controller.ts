@@ -22,7 +22,10 @@ import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
 import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
 import { Folio } from './entities/folio.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('folios')
 @ApiBearerAuth('JWT-auth')

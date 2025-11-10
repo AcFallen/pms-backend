@@ -133,7 +133,8 @@ export class Reservation {
     precision: 10,
     scale: 2,
     nullable: true,
-    comment: 'Tarifa aplicada (por noche, por hora, o precio fijo según configuración del tenant)',
+    comment:
+      'Tarifa aplicada (por noche, por hora, o precio fijo según configuración del tenant)',
   })
   appliedRate: string | null;
 

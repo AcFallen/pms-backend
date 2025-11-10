@@ -22,7 +22,10 @@ import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
 import { Invoice } from './entities/invoice.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('invoices')
 @ApiBearerAuth('JWT-auth')

@@ -20,7 +20,10 @@ export class PaymentsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(createPaymentDto: CreatePaymentDto, tenantId: number): Promise<Payment> {
+  async create(
+    createPaymentDto: CreatePaymentDto,
+    tenantId: number,
+  ): Promise<Payment> {
     const payment = this.paymentRepository.create({
       ...createPaymentDto,
       tenantId,
@@ -57,7 +60,9 @@ export class PaymentsService {
     });
 
     if (!payment) {
-      throw new NotFoundException(`Payment with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Payment with public ID ${publicId} not found`,
+      );
     }
 
     return payment;
@@ -73,7 +78,10 @@ export class PaymentsService {
     });
   }
 
-  async update(id: number, updatePaymentDto: UpdatePaymentDto): Promise<Payment> {
+  async update(
+    id: number,
+    updatePaymentDto: UpdatePaymentDto,
+  ): Promise<Payment> {
     const payment = await this.findOne(id);
 
     Object.assign(payment, updatePaymentDto);

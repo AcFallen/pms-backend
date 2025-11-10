@@ -38,7 +38,8 @@ export class FilterReservationsDto {
   limit?: number = 10;
 
   @ApiProperty({
-    description: 'Filter by check-in date (exact match, ISO 8601 format: YYYY-MM-DD)',
+    description:
+      'Filter by check-in date (exact match, ISO 8601 format: YYYY-MM-DD)',
     example: '2025-11-10',
     required: false,
   })
@@ -47,7 +48,8 @@ export class FilterReservationsDto {
   checkInDate?: string;
 
   @ApiProperty({
-    description: 'Filter by check-in date range - start date (ISO 8601 format: YYYY-MM-DD)',
+    description:
+      'Filter by check-in date range - start date (ISO 8601 format: YYYY-MM-DD)',
     example: '2025-11-01',
     required: false,
   })
@@ -56,7 +58,8 @@ export class FilterReservationsDto {
   checkInStartDate?: string;
 
   @ApiProperty({
-    description: 'Filter by check-in date range - end date (ISO 8601 format: YYYY-MM-DD)',
+    description:
+      'Filter by check-in date range - end date (ISO 8601 format: YYYY-MM-DD)',
     example: '2025-11-30',
     required: false,
   })
@@ -75,7 +78,8 @@ export class FilterReservationsDto {
   status?: ReservationStatus;
 
   @ApiProperty({
-    description: 'Search by guest information (name or document number, case-insensitive)',
+    description:
+      'Search by guest information (name or document number, case-insensitive)',
     example: 'John',
     required: false,
   })

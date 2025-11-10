@@ -21,7 +21,10 @@ import { RoomTypesService } from './room-types.service';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
 import { UpdateRoomTypeDto } from './dto/update-room-type.dto';
 import { RoomType } from './entities/room-type.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
@@ -47,7 +50,10 @@ export class RoomTypesController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createRoomTypeDto: CreateRoomTypeDto, @CurrentUser() user: CurrentUserData) {
+  create(
+    @Body() createRoomTypeDto: CreateRoomTypeDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomTypesService.create(createRoomTypeDto, user.tenantId);
   }
 
@@ -85,7 +91,10 @@ export class RoomTypesController {
     status: 404,
     description: 'Room type not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  findByPublicId(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomTypesService.findByPublicId(publicId, user.tenantId);
   }
 
@@ -119,7 +128,11 @@ export class RoomTypesController {
     @Body() updateRoomTypeDto: UpdateRoomTypeDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.roomTypesService.updateByPublicId(publicId, updateRoomTypeDto, user.tenantId);
+    return this.roomTypesService.updateByPublicId(
+      publicId,
+      updateRoomTypeDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':publicId')
@@ -142,7 +155,10 @@ export class RoomTypesController {
     status: 404,
     description: 'Room type not found',
   })
-  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  remove(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomTypesService.removeByPublicId(publicId, user.tenantId);
   }
 
@@ -150,7 +166,8 @@ export class RoomTypesController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted room type (Admin only)',
-    description: 'Restores a soft-deleted room type by public UUID. Only accessible by ADMIN role.',
+    description:
+      'Restores a soft-deleted room type by public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',
@@ -175,7 +192,10 @@ export class RoomTypesController {
     status: 403,
     description: 'Forbidden - Admin role required',
   })
-  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  restore(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomTypesService.restoreByPublicId(publicId, user.tenantId);
   }
 }

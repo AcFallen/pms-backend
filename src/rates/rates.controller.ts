@@ -21,7 +21,10 @@ import { RatesService } from './rates.service';
 import { CreateRateDto } from './dto/create-rate.dto';
 import { UpdateRateDto } from './dto/update-rate.dto';
 import { Rate } from './entities/rate.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
@@ -47,14 +50,18 @@ export class RatesController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createRateDto: CreateRateDto, @CurrentUser() user: CurrentUserData) {
+  create(
+    @Body() createRateDto: CreateRateDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.ratesService.create(createRateDto, user.tenantId);
   }
 
   @Get()
   @ApiOperation({
     summary: 'Get all rates',
-    description: 'Retrieves all rates for the authenticated tenant, ordered by priority (DESC) and name (ASC)',
+    description:
+      'Retrieves all rates for the authenticated tenant, ordered by priority (DESC) and name (ASC)',
   })
   @ApiResponse({
     status: 200,
@@ -85,7 +92,10 @@ export class RatesController {
     status: 404,
     description: 'Rate not found',
   })
-  findOne(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  findOne(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.ratesService.findByPublicId(publicId, user.tenantId);
   }
 
@@ -119,7 +129,11 @@ export class RatesController {
     @Body() updateRateDto: UpdateRateDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.ratesService.updateByPublicId(publicId, updateRateDto, user.tenantId);
+    return this.ratesService.updateByPublicId(
+      publicId,
+      updateRateDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':publicId')
@@ -142,7 +156,10 @@ export class RatesController {
     status: 404,
     description: 'Rate not found',
   })
-  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  remove(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.ratesService.removeByPublicId(publicId, user.tenantId);
   }
 
@@ -150,7 +167,8 @@ export class RatesController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted rate (Admin only)',
-    description: 'Restores a soft-deleted rate by public UUID. Only accessible by ADMIN role.',
+    description:
+      'Restores a soft-deleted rate by public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',
@@ -171,7 +189,10 @@ export class RatesController {
     status: 409,
     description: 'Rate is not deleted',
   })
-  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  restore(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.ratesService.restoreByPublicId(publicId, user.tenantId);
   }
 }

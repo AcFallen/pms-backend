@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ConflictException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateGuestDto } from './dto/create-guest.dto';
@@ -16,7 +22,8 @@ import {
 
 @Injectable()
 export class GuestsService {
-  private readonly API_PERU_TOKEN = '0zvWuTr1zbRWPONCOOWqASrd1pGKLDtaQXYUL1D3EYDGo1cu3U';
+  private readonly API_PERU_TOKEN =
+    '0zvWuTr1zbRWPONCOOWqASrd1pGKLDtaQXYUL1D3EYDGo1cu3U';
   private readonly API_TIMEOUT = 30000; // 30 seconds
 
   constructor(
@@ -24,7 +31,10 @@ export class GuestsService {
     private readonly guestRepository: Repository<Guest>,
   ) {}
 
-  async create(createGuestDto: CreateGuestDto, tenantId: number): Promise<Guest> {
+  async create(
+    createGuestDto: CreateGuestDto,
+    tenantId: number,
+  ): Promise<Guest> {
     // Check if guest with same document already exists for this tenant
     const existingGuest = await this.guestRepository.findOne({
       where: {
@@ -180,7 +190,7 @@ export class GuestsService {
 
     if (existingGuest) {
       return {
-        publicId: existingGuest.publicId,  // Return publicId for direct use in reservations
+        publicId: existingGuest.publicId, // Return publicId for direct use in reservations
         firstName: existingGuest.firstName,
         lastName: existingGuest.lastName,
         documentType: existingGuest.documentType,
@@ -190,7 +200,9 @@ export class GuestsService {
         address: existingGuest.address,
         city: existingGuest.city,
         country: existingGuest.country,
-        birthDate: existingGuest.birthDate ? existingGuest.birthDate.toISOString().split('T')[0] : null,
+        birthDate: existingGuest.birthDate
+          ? existingGuest.birthDate.toISOString().split('T')[0]
+          : null,
         notes: existingGuest.notes,
         source: 'database',
         message: 'Huésped encontrado en la base de datos',
@@ -198,9 +210,15 @@ export class GuestsService {
     }
 
     // 2. If not found in database and is DNI or RUC, search in external API
-    if (documentType === DocumentType.DNI || documentType === DocumentType.RUC) {
+    if (
+      documentType === DocumentType.DNI ||
+      documentType === DocumentType.RUC
+    ) {
       try {
-        const apiData = await this.fetchFromExternalApi(documentType, documentNumber);
+        const apiData = await this.fetchFromExternalApi(
+          documentType,
+          documentNumber,
+        );
         return apiData;
       } catch (error) {
         // If API fails, return not found
@@ -233,7 +251,7 @@ export class GuestsService {
       const response = await fetch(url, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${this.API_PERU_TOKEN}`,
+          Authorization: `Bearer ${this.API_PERU_TOKEN}`,
           'Content-Type': 'application/json',
         },
         signal: controller.signal,
@@ -271,25 +289,34 @@ export class GuestsService {
     }
   }
 
-  private parseDniResponse(apiResponse: DniApiResponse, documentNumber: string): GuestSearchResponse {
+  private parseDniResponse(
+    apiResponse: DniApiResponse,
+    documentNumber: string,
+  ): GuestSearchResponse {
     const data = apiResponse.data;
 
     // Combine address fields
-    const fullAddress: string | null = data.direccion_completa || data.direccion || null;
+    const fullAddress: string | null =
+      data.direccion_completa || data.direccion || null;
 
     // Combine city (distrito, provincia, departamento)
     let city: string | null = null;
     if (data.distrito || data.provincia || data.departamento) {
-      const parts = [data.distrito, data.provincia, data.departamento].filter(Boolean);
+      const parts = [data.distrito, data.provincia, data.departamento].filter(
+        Boolean,
+      );
       city = parts.length > 0 ? parts.join(', ') : null;
     }
 
     // Combine lastName
-    const lastNameParts = [data.apellido_paterno, data.apellido_materno].filter(Boolean);
-    const lastName: string | null = lastNameParts.length > 0 ? lastNameParts.join(' ') : null;
+    const lastNameParts = [data.apellido_paterno, data.apellido_materno].filter(
+      Boolean,
+    );
+    const lastName: string | null =
+      lastNameParts.length > 0 ? lastNameParts.join(' ') : null;
 
     return {
-      publicId: null,  // From external API, guest not yet created
+      publicId: null, // From external API, guest not yet created
       firstName: data.nombres || null,
       lastName: lastName,
       documentType: DocumentType.DNI,
@@ -306,7 +333,10 @@ export class GuestsService {
     };
   }
 
-  private parseRucResponse(apiResponse: RucApiResponse, documentNumber: string): GuestSearchResponse {
+  private parseRucResponse(
+    apiResponse: RucApiResponse,
+    documentNumber: string,
+  ): GuestSearchResponse {
     const data = apiResponse.data;
 
     // For RUC, nombre_o_razon_social is the full name/business name
@@ -317,7 +347,11 @@ export class GuestsService {
     let lastName: string | null = null;
 
     // If it looks like a person's name (starts with numbers indicating DNI-based RUC)
-    if (documentNumber.length === 11 && documentNumber.startsWith('10') && fullName) {
+    if (
+      documentNumber.length === 11 &&
+      documentNumber.startsWith('10') &&
+      fullName
+    ) {
       const nameParts = fullName.split(' ');
       if (nameParts.length >= 3) {
         // Assume: APELLIDO_PATERNO APELLIDO_MATERNO NOMBRES
@@ -330,7 +364,9 @@ export class GuestsService {
     // Combine city (distrito, provincia, departamento)
     let city: string | null = null;
     if (data.distrito || data.provincia || data.departamento) {
-      const parts = [data.distrito, data.provincia, data.departamento].filter(Boolean);
+      const parts = [data.distrito, data.provincia, data.departamento].filter(
+        Boolean,
+      );
       city = parts.length > 0 ? parts.join(', ') : null;
     }
 
@@ -341,7 +377,7 @@ export class GuestsService {
     }
 
     return {
-      publicId: null,  // From external API, guest not yet created
+      publicId: null, // From external API, guest not yet created
       firstName: firstName,
       lastName: lastName,
       documentType: DocumentType.RUC,
@@ -363,7 +399,7 @@ export class GuestsService {
     documentNumber: string,
   ): GuestSearchResponse {
     return {
-      publicId: null,  // Guest not found
+      publicId: null, // Guest not found
       firstName: null,
       lastName: null,
       documentType: documentType,

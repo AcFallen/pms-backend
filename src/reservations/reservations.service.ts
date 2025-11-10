@@ -15,13 +15,13 @@ import { Room } from '../rooms/entities/room.entity';
 import { Guest } from '../guests/entities/guest.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
 import { Folio } from '../folios/entities/folio.entity';
-import { Payment } from '../payments/entities/payment.entity';
+import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { CleaningTask } from '../cleaning-tasks/entities/cleaning-task.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
 import { RoomStatus } from '../rooms/enums/room-status.enum';
 import { CleaningStatus } from '../rooms/enums/cleaning-status.enum';
 import { FolioStatus } from '../folios/enums/folio-status.enum';
-import { ReservationSource } from './enums/reservation-source.enum';
+import { ChargeType } from '../folio-charges/enums/charge-type.enum';
 import { TaskStatus } from '../cleaning-tasks/enums/task-status.enum';
 import { TaskPriority } from '../cleaning-tasks/enums/task-priority.enum';
 import { TaskType } from '../cleaning-tasks/enums/task-type.enum';
@@ -41,6 +41,10 @@ export class ReservationsService {
     private readonly guestRepository: Repository<Guest>,
     @InjectRepository(RoomType)
     private readonly roomTypeRepository: Repository<RoomType>,
+    @InjectRepository(Folio)
+    private readonly folioRepository: Repository<Folio>,
+    @InjectRepository(FolioCharge)
+    private readonly folioChargeRepository: Repository<FolioCharge>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -48,109 +52,184 @@ export class ReservationsService {
     createReservationDto: CreateReservationDto,
     tenantId: number,
   ): Promise<Reservation> {
-    // Check if reservation code already exists
-    const existingReservation = await this.reservationRepository.findOne({
-      where: {
-        reservationCode: createReservationDto.reservationCode,
-        tenantId,
-      },
-    });
-    if (existingReservation) {
-      throw new ConflictException(
-        `Reservation code ${createReservationDto.reservationCode} already exists`,
-      );
-    }
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Resolve guest publicId to internal ID
-    const guest = await this.guestRepository.findOne({
-      where: {
-        publicId: createReservationDto.guestPublicId,
-        tenantId,
-      },
-    });
-    if (!guest) {
-      throw new NotFoundException(
-        `Guest with publicId ${createReservationDto.guestPublicId} not found`,
+    try {
+      // Check if reservation code already exists
+      const existingReservation = await queryRunner.manager.findOne(
+        Reservation,
+        {
+          where: {
+            reservationCode: createReservationDto.reservationCode,
+            tenantId,
+          },
+        },
       );
-    }
+      if (existingReservation) {
+        throw new ConflictException(
+          `Reservation code ${createReservationDto.reservationCode} already exists`,
+        );
+      }
 
-    // Resolve roomType publicId to internal ID
-    const roomType = await this.roomTypeRepository.findOne({
-      where: {
-        publicId: createReservationDto.roomTypePublicId,
-        tenantId,
-      },
-    });
-    if (!roomType) {
-      throw new NotFoundException(
-        `Room type with publicId ${createReservationDto.roomTypePublicId} not found`,
-      );
-    }
-
-    // Resolve room publicId to internal ID (if provided)
-    let roomId: number | null = null;
-    if (createReservationDto.roomPublicId) {
-      const room = await this.roomRepository.findOne({
+      // Resolve guest publicId to internal ID
+      const guest = await queryRunner.manager.findOne(Guest, {
         where: {
-          publicId: createReservationDto.roomPublicId,
+          publicId: createReservationDto.guestPublicId,
           tenantId,
         },
       });
-      if (!room) {
+      if (!guest) {
         throw new NotFoundException(
-          `Room with publicId ${createReservationDto.roomPublicId} not found`,
+          `Guest with publicId ${createReservationDto.guestPublicId} not found`,
         );
       }
-      roomId = room.id;
-    }
 
-    // Calculate nights if not provided
-    let nights = createReservationDto.nights;
-    if (!nights) {
-      const checkIn = new Date(createReservationDto.checkInDate);
-      const checkOut = new Date(createReservationDto.checkOutDate);
-      const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
-      nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    }
+      // Resolve roomType publicId to internal ID
+      const roomType = await queryRunner.manager.findOne(RoomType, {
+        where: {
+          publicId: createReservationDto.roomTypePublicId,
+          tenantId,
+        },
+      });
+      if (!roomType) {
+        throw new NotFoundException(
+          `Room type with publicId ${createReservationDto.roomTypePublicId} not found`,
+        );
+      }
 
-    const reservation = this.reservationRepository.create({
-      reservationCode: createReservationDto.reservationCode,
-      status: createReservationDto.status,
-      source: createReservationDto.source,
-      checkInDate: createReservationDto.checkInDate,
-      checkOutDate: createReservationDto.checkOutDate,
-      checkInTime: createReservationDto.status === ReservationStatus.CHECKED_IN ? new Date() : null,
-      nights,
-      hours: createReservationDto.hours,
-      adults: createReservationDto.adults,
-      children: createReservationDto.children,
-      appliedRate: createReservationDto.appliedRate,
-      totalAmount: createReservationDto.totalAmount,
-      notes: createReservationDto.notes,
-      guestId: guest.id,
-      roomTypeId: roomType.id,
-      roomId,
-      tenantId,
-    });
+      // Resolve room publicId to internal ID (if provided)
+      let roomId: number | null = null;
+      let room: Room | null = null;
+      if (createReservationDto.roomPublicId) {
+        room = await queryRunner.manager.findOne(Room, {
+          where: {
+            publicId: createReservationDto.roomPublicId,
+            tenantId,
+          },
+        });
+        if (!room) {
+          throw new NotFoundException(
+            `Room with publicId ${createReservationDto.roomPublicId} not found`,
+          );
+        }
+        roomId = room.id;
+      }
 
-    const savedReservation = await this.reservationRepository.save(reservation);
+      // Calculate nights if not provided
+      let nights = createReservationDto.nights;
+      if (!nights) {
+        const checkIn = new Date(createReservationDto.checkInDate);
+        const checkOut = new Date(createReservationDto.checkOutDate);
+        const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
+        nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
 
-    // Update room status to OCCUPIED if checking in with assigned room
-    if (savedReservation.status === ReservationStatus.CHECKED_IN && roomId) {
-      await this.roomRepository.update(
-        { id: roomId, tenantId },
-        { status: RoomStatus.OCCUPIED },
+      // Create reservation
+      const reservation = queryRunner.manager.create(Reservation, {
+        reservationCode: createReservationDto.reservationCode,
+        status: createReservationDto.status,
+        source: createReservationDto.source,
+        checkInDate: createReservationDto.checkInDate,
+        checkOutDate: createReservationDto.checkOutDate,
+        checkInTime:
+          createReservationDto.status === ReservationStatus.CHECKED_IN
+            ? new Date()
+            : null,
+        nights,
+        hours: createReservationDto.hours,
+        adults: createReservationDto.adults,
+        children: createReservationDto.children,
+        appliedRate: createReservationDto.appliedRate,
+        totalAmount: createReservationDto.totalAmount,
+        notes: createReservationDto.notes,
+        guestId: guest.id,
+        roomTypeId: roomType.id,
+        roomId,
+        tenantId,
+      });
+
+      const savedReservation = await queryRunner.manager.save(
+        Reservation,
+        reservation,
       );
-    }
 
-    return savedReservation;
+      // Generate folio number
+      const folioNumber = await this.generateFolioNumber(queryRunner, tenantId);
+
+      // Create folio for the reservation
+      const folio = queryRunner.manager.create(Folio, {
+        tenantId,
+        reservationId: savedReservation.id,
+        folioNumber,
+        status: FolioStatus.OPEN,
+        subtotal: createReservationDto.totalAmount,
+        tax: 0,
+        total: createReservationDto.totalAmount,
+        balance: createReservationDto.totalAmount,
+        notes: null,
+      });
+
+      const savedFolio = await queryRunner.manager.save(Folio, folio);
+
+      // Create folio charge for room accommodation
+      const roomDescription = room
+        ? `${nights} noche(s) - Habitación ${room.roomNumber} (${roomType.name})`
+        : `${nights} noche(s) - ${roomType.name}`;
+
+      const totalAmount = parseFloat(
+        createReservationDto.totalAmount.toString(),
+      );
+      const unitPrice = parseFloat((totalAmount / nights).toFixed(2));
+
+      const folioCharge = queryRunner.manager.create(FolioCharge, {
+        tenantId,
+        folioId: savedFolio.id,
+        chargeType: ChargeType.ROOM,
+        productId: null,
+        description: roomDescription,
+        quantity: nights,
+        unitPrice,
+        total: totalAmount,
+        chargeDate: new Date(),
+      });
+
+      await queryRunner.manager.save(FolioCharge, folioCharge);
+
+      // Update room status to OCCUPIED if checking in with assigned room
+      if (savedReservation.status === ReservationStatus.CHECKED_IN && roomId) {
+        await queryRunner.manager.update(
+          Room,
+          { id: roomId, tenantId },
+          { status: RoomStatus.OCCUPIED },
+        );
+      }
+
+      await queryRunner.commitTransaction();
+
+      return savedReservation;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async findAll(
     tenantId: number,
     filters: FilterReservationsDto,
   ): Promise<PaginatedReservationsResponseDto> {
-    const { page = 1, limit = 10, checkInDate, checkInStartDate, checkInEndDate, status, search } = filters;
+    const {
+      page = 1,
+      limit = 10,
+      checkInDate,
+      checkInStartDate,
+      checkInEndDate,
+      status,
+      search,
+    } = filters;
 
     // Build query for data retrieval - use leftJoinAndSelect to load relations
     const query = this.reservationRepository
@@ -188,7 +267,9 @@ export class ReservationsService {
     }
 
     // Order by check-in date descending, then creation date
-    query.orderBy('reservation.checkInDate', 'DESC').addOrderBy('reservation.createdAt', 'DESC');
+    query
+      .orderBy('reservation.checkInDate', 'DESC')
+      .addOrderBy('reservation.createdAt', 'DESC');
 
     // Apply pagination
     const skip = (page - 1) * limit;
@@ -203,12 +284,14 @@ export class ReservationsService {
       reservationCode: reservation.reservationCode,
       guestFullName: `${reservation.guest.firstName} ${reservation.guest.lastName}`,
       guestDocument: reservation.guest.documentNumber,
-      checkInDate: reservation.checkInDate instanceof Date
-        ? reservation.checkInDate.toISOString().split('T')[0]
-        : reservation.checkInDate,
-      checkOutDate: reservation.checkOutDate instanceof Date
-        ? reservation.checkOutDate.toISOString().split('T')[0]
-        : reservation.checkOutDate,
+      checkInDate:
+        reservation.checkInDate instanceof Date
+          ? reservation.checkInDate.toISOString().split('T')[0]
+          : reservation.checkInDate,
+      checkOutDate:
+        reservation.checkOutDate instanceof Date
+          ? reservation.checkOutDate.toISOString().split('T')[0]
+          : reservation.checkOutDate,
       roomNumber: reservation.room?.roomNumber || 'N/A',
       nights: reservation.nights ?? 0,
       hours: reservation.hours,
@@ -242,10 +325,7 @@ export class ReservationsService {
     return reservation;
   }
 
-  async findByPublicId(
-    publicId: string,
-    tenantId: number,
-  ): Promise<any> {
+  async findByPublicId(publicId: string, tenantId: number): Promise<any> {
     const reservation = await this.reservationRepository
       .createQueryBuilder('reservation')
       .select([
@@ -278,16 +358,9 @@ export class ReservationsService {
         'guest.phone',
       ])
       .leftJoin('reservation.room', 'room')
-      .addSelect([
-        'room.publicId',
-        'room.roomNumber',
-      ])
+      .addSelect(['room.publicId', 'room.roomNumber'])
       .leftJoin('reservation.roomType', 'roomType')
-      .addSelect([
-        'roomType.publicId',
-        'roomType.name',
-        'roomType.description',
-      ])
+      .addSelect(['roomType.publicId', 'roomType.name', 'roomType.description'])
       .leftJoin('reservation.folios', 'folio')
       .addSelect([
         'folio.publicId',
@@ -603,7 +676,8 @@ export class ReservationsService {
       cleaningTask.priority = TaskPriority.HIGH;
       cleaningTask.taskType = TaskType.CHECKOUT;
       cleaningTask.assignedTo = null; // Will be assigned later by supervisor
-      cleaningTask.notes = `Checkout cleaning for reservation ${reservation.reservationCode}. Guest: ${reservation.guest?.firstName || ''} ${reservation.guest?.lastName || ''}`.trim();
+      cleaningTask.notes =
+        `Checkout cleaning for reservation ${reservation.reservationCode}. Guest: ${reservation.guest?.firstName || ''} ${reservation.guest?.lastName || ''}`.trim();
 
       await queryRunner.manager.save(CleaningTask, cleaningTask);
 
@@ -620,5 +694,22 @@ export class ReservationsService {
       // Release query runner
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Generates a unique folio number in format: FOL-YYYY-XXXXX
+   * @param queryRunner - QueryRunner instance for transaction context
+   * @param tenantId - Tenant ID for scoping
+   * @returns Generated folio number
+   */
+  private async generateFolioNumber(
+    queryRunner: ReturnType<DataSource['createQueryRunner']>,
+    tenantId: number,
+  ): Promise<string> {
+    const year = new Date().getFullYear();
+    const folioCount = await queryRunner.manager.count(Folio, {
+      where: { tenantId },
+    });
+    return `FOL-${year}-${String(folioCount + 1).padStart(5, '0')}`;
   }
 }

@@ -71,19 +71,22 @@ export class TenantsController {
         billingMode: {
           type: 'string',
           enum: ['fixed_price', 'minimum_price'],
-          description: 'Modo de facturación: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
+          description:
+            'Modo de facturación: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
           example: 'fixed_price',
         },
         checkoutPolicy: {
           type: 'string',
           enum: ['fixed_time', 'flexible_24h'],
-          description: 'Política de checkout: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
+          description:
+            'Política de checkout: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
           example: 'fixed_time',
         },
         checkoutTime: {
           type: 'string',
           pattern: '^([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)$',
-          description: 'Hora de checkout (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
+          description:
+            'Hora de checkout (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
           example: '12:00:00',
         },
         lateCheckoutFee: {
@@ -146,7 +149,8 @@ export class TenantsController {
   @Get('config')
   @ApiOperation({
     summary: 'Get current tenant configuration',
-    description: 'Retrieves only the billing and checkout configuration for the authenticated tenant',
+    description:
+      'Retrieves only the billing and checkout configuration for the authenticated tenant',
   })
   @ApiResponse({
     status: 200,
@@ -247,19 +251,22 @@ export class TenantsController {
         billingMode: {
           type: 'string',
           enum: ['fixed_price', 'minimum_price'],
-          description: 'Modo de facturación: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
+          description:
+            'Modo de facturación: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
           example: 'fixed_price',
         },
         checkoutPolicy: {
           type: 'string',
           enum: ['fixed_time', 'flexible_24h'],
-          description: 'Política de checkout: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
+          description:
+            'Política de checkout: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
           example: 'fixed_time',
         },
         checkoutTime: {
           type: 'string',
           pattern: '^([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)$',
-          description: 'Hora de checkout (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
+          description:
+            'Hora de checkout (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
           example: '12:00:00',
         },
         lateCheckoutFee: {

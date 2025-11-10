@@ -26,9 +26,7 @@ export class NubefactService {
   /**
    * Send invoice to Nubefact/SUNAT
    */
-  async sendInvoice(
-    payload: NubefactRequest,
-  ): Promise<NubefactResponse> {
+  async sendInvoice(payload: NubefactRequest): Promise<NubefactResponse> {
     this.logger.log(
       `Sending invoice to Nubefact: ${payload.serie}-${String(payload.numero).padStart(8, '0')}`,
     );

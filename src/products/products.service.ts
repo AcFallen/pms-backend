@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -15,7 +19,10 @@ export class ProductsService {
     private readonly productCategoryRepository: Repository<ProductCategory>,
   ) {}
 
-  async create(createProductDto: CreateProductDto, tenantId: number): Promise<Product> {
+  async create(
+    createProductDto: CreateProductDto,
+    tenantId: number,
+  ): Promise<Product> {
     // Find product category by public ID
     const category = await this.productCategoryRepository.findOne({
       where: { publicId: createProductDto.categoryPublicId, tenantId },
@@ -30,7 +37,9 @@ export class ProductsService {
         where: { sku: createProductDto.sku, tenantId },
       });
       if (existingProduct) {
-        throw new ConflictException(`Product with SKU '${createProductDto.sku}' already exists for this tenant`);
+        throw new ConflictException(
+          `Product with SKU '${createProductDto.sku}' already exists for this tenant`,
+        );
       }
     }
 
@@ -69,7 +78,9 @@ export class ProductsService {
       relations: ['category'],
     });
     if (!product) {
-      throw new NotFoundException(`Product with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Product with public ID ${publicId} not found`,
+      );
     }
     return product;
   }
@@ -98,7 +109,9 @@ export class ProductsService {
         where: { sku: updateProductDto.sku, tenantId },
       });
       if (existingProduct) {
-        throw new ConflictException(`Product with SKU '${updateProductDto.sku}' already exists for this tenant`);
+        throw new ConflictException(
+          `Product with SKU '${updateProductDto.sku}' already exists for this tenant`,
+        );
       }
     }
 
@@ -113,14 +126,19 @@ export class ProductsService {
     await this.productRepository.softRemove(product);
   }
 
-  async restoreByPublicId(publicId: string, tenantId: number): Promise<Product> {
+  async restoreByPublicId(
+    publicId: string,
+    tenantId: number,
+  ): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { publicId, tenantId },
       withDeleted: true,
     });
 
     if (!product) {
-      throw new NotFoundException(`Product with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Product with public ID ${publicId} not found`,
+      );
     }
 
     if (!product.deletedAt) {

@@ -36,7 +36,9 @@ export default class MainSeeder implements Seeder {
     });
 
     const createdTenant = await tenantRepository.save(tenant);
-    console.log(`✅ Tenant created: ${createdTenant.name} - ID: ${createdTenant.id}, Public ID: ${createdTenant.publicId}`);
+    console.log(
+      `✅ Tenant created: ${createdTenant.name} - ID: ${createdTenant.id}, Public ID: ${createdTenant.publicId}`,
+    );
 
     console.log('\n🌱 Seeding basic users...');
 
@@ -89,7 +91,9 @@ export default class MainSeeder implements Seeder {
 
     console.log('✅ Successfully created users:');
     createdUsers.forEach((user) => {
-      console.log(`   - ${user.email} (${user.role}) - ID: ${user.id}, Public ID: ${user.publicId}`);
+      console.log(
+        `   - ${user.email} (${user.role}) - ID: ${user.id}, Public ID: ${user.publicId}`,
+      );
     });
     console.log(`\n📝 Default password for all users: ${defaultPassword}`);
   }

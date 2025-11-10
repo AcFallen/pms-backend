@@ -45,14 +45,21 @@ export class CleaningTasksController {
     status: 400,
     description: 'Validation error',
   })
-  create(@Body() createCleaningTaskDto: CreateCleaningTaskDto, @CurrentUser() user: any) {
-    return this.cleaningTasksService.create(createCleaningTaskDto, user.tenantId);
+  create(
+    @Body() createCleaningTaskDto: CreateCleaningTaskDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.cleaningTasksService.create(
+      createCleaningTaskDto,
+      user.tenantId,
+    );
   }
 
   @Get()
   @ApiOperation({
     summary: 'Get all cleaning tasks',
-    description: 'Retrieves all cleaning tasks for the authenticated tenant, ordered by priority and creation date',
+    description:
+      'Retrieves all cleaning tasks for the authenticated tenant, ordered by priority and creation date',
   })
   @ApiResponse({
     status: 200,
@@ -83,7 +90,10 @@ export class CleaningTasksController {
     status: 404,
     description: 'Cleaning task not found',
   })
-  findByPublicId(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+  findByPublicId(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: any,
+  ) {
     return this.cleaningTasksService.findByPublicId(publicId, user.tenantId);
   }
 
@@ -141,7 +151,11 @@ export class CleaningTasksController {
     @Body() updateCleaningTaskDto: UpdateCleaningTaskDto,
     @CurrentUser() user: any,
   ) {
-    return this.cleaningTasksService.update(+id, updateCleaningTaskDto, user.tenantId);
+    return this.cleaningTasksService.update(
+      +id,
+      updateCleaningTaskDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':id')

@@ -148,7 +148,8 @@ export class CreateTenantDto {
   maxRooms?: number;
 
   @ApiProperty({
-    description: 'Billing mode: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
+    description:
+      'Billing mode: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
     enum: BillingMode,
     example: BillingMode.FIXED_PRICE,
     default: BillingMode.FIXED_PRICE,
@@ -159,7 +160,8 @@ export class CreateTenantDto {
   billingMode?: BillingMode;
 
   @ApiProperty({
-    description: 'Checkout policy: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
+    description:
+      'Checkout policy: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
     enum: CheckoutPolicy,
     example: CheckoutPolicy.FIXED_TIME,
     default: CheckoutPolicy.FIXED_TIME,
@@ -170,7 +172,8 @@ export class CreateTenantDto {
   checkoutPolicy?: CheckoutPolicy;
 
   @ApiProperty({
-    description: 'Checkout time (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
+    description:
+      'Checkout time (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
     example: '12:00:00',
     pattern: '^([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)$',
     required: false,

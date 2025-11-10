@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateRateDto } from './dto/create-rate.dto';
@@ -64,7 +68,11 @@ export class RatesService {
     return rate;
   }
 
-  async updateByPublicId(publicId: string, updateRateDto: UpdateRateDto, tenantId: number): Promise<Rate> {
+  async updateByPublicId(
+    publicId: string,
+    updateRateDto: UpdateRateDto,
+    tenantId: number,
+  ): Promise<Rate> {
     const rate = await this.findByPublicId(publicId, tenantId);
 
     // If room type is being updated, find it by public ID

@@ -4,7 +4,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class FilterGuestsDto {
   @ApiPropertyOptional({
-    description: 'Search term for firstName, lastName, email, phone, or documentNumber',
+    description:
+      'Search term for firstName, lastName, email, phone, or documentNumber',
     example: 'John',
   })
   @IsOptional()

@@ -24,10 +24,7 @@ import { VoucherType } from '../teanant-vourcher-series/enums/voucher-type.enum'
 import { SunatDocumentType } from './enums/sunat-document-type.enum';
 import { SunatCustomerDocumentType } from './enums/sunat-customer-document-type.enum';
 import { DocumentType } from '../guests/enums/document-type.enum';
-import {
-  NubefactRequest,
-  NubefactItem,
-} from './interfaces/nubefact.interface';
+import { NubefactRequest, NubefactItem } from './interfaces/nubefact.interface';
 
 @Injectable()
 export class InvoicesService {
@@ -48,7 +45,10 @@ export class InvoicesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(createInvoiceDto: CreateInvoiceDto, tenantId: number): Promise<Invoice> {
+  async create(
+    createInvoiceDto: CreateInvoiceDto,
+    tenantId: number,
+  ): Promise<Invoice> {
     // Check if invoice with same series and number already exists
     const existingInvoice = await this.invoiceRepository.findOne({
       where: {
@@ -100,7 +100,9 @@ export class InvoicesService {
     });
 
     if (!invoice) {
-      throw new NotFoundException(`Invoice with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Invoice with public ID ${publicId} not found`,
+      );
     }
 
     return invoice;
@@ -116,20 +118,28 @@ export class InvoicesService {
     });
   }
 
-  async findByFullNumber(fullNumber: string, tenantId: number): Promise<Invoice> {
+  async findByFullNumber(
+    fullNumber: string,
+    tenantId: number,
+  ): Promise<Invoice> {
     const invoice = await this.invoiceRepository.findOne({
       where: { fullNumber, tenantId },
       relations: ['folio'],
     });
 
     if (!invoice) {
-      throw new NotFoundException(`Invoice with full number ${fullNumber} not found`);
+      throw new NotFoundException(
+        `Invoice with full number ${fullNumber} not found`,
+      );
     }
 
     return invoice;
   }
 
-  async update(id: number, updateInvoiceDto: UpdateInvoiceDto): Promise<Invoice> {
+  async update(
+    id: number,
+    updateInvoiceDto: UpdateInvoiceDto,
+  ): Promise<Invoice> {
     const invoice = await this.findOne(id);
 
     // If updating series/number, check for conflicts
@@ -183,9 +193,7 @@ export class InvoicesService {
       });
 
       if (!folio) {
-        throw new NotFoundException(
-          `Folio ${dto.folioPublicId} not found`,
-        );
+        throw new NotFoundException(`Folio ${dto.folioPublicId} not found`);
       }
 
       if (folio.status !== FolioStatus.CLOSED) {
@@ -244,7 +252,8 @@ export class InvoicesService {
       const customerDocumentNumber =
         dto.customerDocumentNumber || guest.documentNumber;
       const customerName =
-        dto.customerName || `${guest.firstName} ${guest.lastName}`.toUpperCase();
+        dto.customerName ||
+        `${guest.firstName} ${guest.lastName}`.toUpperCase();
       const customerAddress =
         dto.customerAddress || guest.address || 'SIN DIRECCIÓN';
       const customerEmail = dto.customerEmail || guest.email || undefined;

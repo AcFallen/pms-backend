@@ -120,7 +120,8 @@ export class ReservationsController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Search by guest information (first name, last name, full name, or document number)',
+    description:
+      'Search by guest information (first name, last name, full name, or document number)',
     example: 'John',
   })
   @ApiResponse({
@@ -321,7 +322,8 @@ export class ReservationsController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error (not checked in, has outstanding balance, etc.)',
+    description:
+      'Validation error (not checked in, has outstanding balance, etc.)',
   })
   @ApiResponse({
     status: 404,

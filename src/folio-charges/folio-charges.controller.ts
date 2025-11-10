@@ -21,7 +21,10 @@ import { FolioChargesService } from './folio-charges.service';
 import { CreateFolioChargeDto } from './dto/create-folio-charge.dto';
 import { UpdateFolioChargeDto } from './dto/update-folio-charge.dto';
 import { FolioCharge } from './entities/folio-charge.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('folio-charges')
 @ApiBearerAuth('JWT-auth')
@@ -159,7 +162,10 @@ export class FolioChargesController {
     status: 404,
     description: 'Folio charge not found',
   })
-  update(@Param('id') id: string, @Body() updateFolioChargeDto: UpdateFolioChargeDto) {
+  update(
+    @Param('id') id: string,
+    @Body() updateFolioChargeDto: UpdateFolioChargeDto,
+  ) {
     return this.folioChargesService.update(+id, updateFolioChargeDto);
   }
 

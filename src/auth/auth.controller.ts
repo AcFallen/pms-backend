@@ -1,11 +1,20 @@
 import { Controller, Post, UseGuards, Request, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBody,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
-import { CurrentUser, CurrentUserData } from './decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from './decorators/current-user.decorator';
 
 @ApiTags('auth')
 @Controller('auth')

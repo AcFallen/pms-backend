@@ -14,9 +14,19 @@ export const dataSourceOptions: DataSourceOptions & SeederOptions = {
   password: process.env.DB_PASSWORD || 'postgres',
   database: process.env.DB_DATABASE || 'pms_db',
   entities: [isProduction ? 'dist/**/*.entity.js' : 'src/**/*.entity.ts'],
-  migrations: [isProduction ? 'dist/database/migrations/*.js' : 'src/database/migrations/*.ts'],
-  seeds: [isProduction ? 'dist/database/seeds/**/*.js' : 'src/database/seeds/**/*.ts'],
-  factories: [isProduction ? 'dist/database/factories/**/*.js' : 'src/database/factories/**/*.ts'],
+  migrations: [
+    isProduction
+      ? 'dist/database/migrations/*.js'
+      : 'src/database/migrations/*.ts',
+  ],
+  seeds: [
+    isProduction ? 'dist/database/seeds/**/*.js' : 'src/database/seeds/**/*.ts',
+  ],
+  factories: [
+    isProduction
+      ? 'dist/database/factories/**/*.js'
+      : 'src/database/factories/**/*.ts',
+  ],
   synchronize: false, // Disable in production
 };
 

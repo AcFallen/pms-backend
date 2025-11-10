@@ -22,7 +22,10 @@ export class FoliosService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(createFolioDto: CreateFolioDto, tenantId: number): Promise<Folio> {
+  async create(
+    createFolioDto: CreateFolioDto,
+    tenantId: number,
+  ): Promise<Folio> {
     // Check if folio number already exists
     const existingFolio = await this.folioRepository.findOne({
       where: { folioNumber: createFolioDto.folioNumber },
@@ -171,8 +174,9 @@ export class FoliosService {
       const savedFolio = await queryRunner.manager.save(Folio, folio);
 
       // 6. Generate reference number if not provided
-      const referenceNumber = dto.payment.referenceNumber ||
-        await this.generatePaymentReferenceNumber(queryRunner, tenantId);
+      const referenceNumber =
+        dto.payment.referenceNumber ||
+        (await this.generatePaymentReferenceNumber(queryRunner, tenantId));
 
       // 7. Register payment
       const payment = new Payment();
@@ -188,13 +192,14 @@ export class FoliosService {
 
       // 7. Update folio status to CLOSED if payment covers total amount
       if (dto.payment.amount >= totalAmount) {
-        await queryRunner.manager.update(Folio,
+        await queryRunner.manager.update(
+          Folio,
           { id: savedFolio.id },
           {
             status: FolioStatus.CLOSED,
             balance: 0,
             closedAt: new Date(),
-          }
+          },
         );
         savedFolio.status = FolioStatus.CLOSED;
         savedFolio.balance = 0;
@@ -205,7 +210,6 @@ export class FoliosService {
       await queryRunner.commitTransaction();
 
       return savedFolio;
-
     } catch (error) {
       // Rollback transaction on error
       await queryRunner.rollbackTransaction();

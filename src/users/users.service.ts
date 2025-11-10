@@ -74,13 +74,19 @@ export class UsersService {
     });
   }
 
-  async updateByPublicId(publicId: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async updateByPublicId(
+    publicId: string,
+    updateUserDto: UpdateUserDto,
+  ): Promise<User> {
     const user = await this.findByPublicId(publicId);
 
     // If updating password, hash it
     if (updateUserDto.password) {
       const saltRounds = 10;
-      const passwordHash = await bcrypt.hash(updateUserDto.password, saltRounds);
+      const passwordHash = await bcrypt.hash(
+        updateUserDto.password,
+        saltRounds,
+      );
       const { password, ...userData } = updateUserDto;
       Object.assign(user, { ...userData, passwordHash });
     } else {

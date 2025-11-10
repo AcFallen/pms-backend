@@ -12,7 +12,10 @@ export class CleaningTasksService {
     private readonly cleaningTaskRepository: Repository<CleaningTask>,
   ) {}
 
-  async create(createCleaningTaskDto: CreateCleaningTaskDto, tenantId: number): Promise<CleaningTask> {
+  async create(
+    createCleaningTaskDto: CreateCleaningTaskDto,
+    tenantId: number,
+  ): Promise<CleaningTask> {
     const cleaningTask = this.cleaningTaskRepository.create({
       ...createCleaningTaskDto,
       tenantId,
@@ -39,13 +42,18 @@ export class CleaningTasksService {
     return cleaningTask;
   }
 
-  async findByPublicId(publicId: string, tenantId: number): Promise<CleaningTask> {
+  async findByPublicId(
+    publicId: string,
+    tenantId: number,
+  ): Promise<CleaningTask> {
     const cleaningTask = await this.cleaningTaskRepository.findOne({
       where: { publicId, tenantId },
       relations: ['room', 'assignedUser'],
     });
     if (!cleaningTask) {
-      throw new NotFoundException(`Cleaning task with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Cleaning task with public ID ${publicId} not found`,
+      );
     }
     return cleaningTask;
   }

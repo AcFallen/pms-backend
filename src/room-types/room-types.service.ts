@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateRoomTypeDto } from './dto/create-room-type.dto';
@@ -12,7 +16,10 @@ export class RoomTypesService {
     private readonly roomTypeRepository: Repository<RoomType>,
   ) {}
 
-  async create(createRoomTypeDto: CreateRoomTypeDto, tenantId: number): Promise<RoomType> {
+  async create(
+    createRoomTypeDto: CreateRoomTypeDto,
+    tenantId: number,
+  ): Promise<RoomType> {
     const roomType = this.roomTypeRepository.create({
       ...createRoomTypeDto,
       tenantId,
@@ -42,12 +49,18 @@ export class RoomTypesService {
       where: { publicId, tenantId },
     });
     if (!roomType) {
-      throw new NotFoundException(`Room type with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Room type with public ID ${publicId} not found`,
+      );
     }
     return roomType;
   }
 
-  async updateByPublicId(publicId: string, updateRoomTypeDto: UpdateRoomTypeDto, tenantId: number): Promise<RoomType> {
+  async updateByPublicId(
+    publicId: string,
+    updateRoomTypeDto: UpdateRoomTypeDto,
+    tenantId: number,
+  ): Promise<RoomType> {
     const roomType = await this.findByPublicId(publicId, tenantId);
     Object.assign(roomType, updateRoomTypeDto);
     return await this.roomTypeRepository.save(roomType);
@@ -58,14 +71,19 @@ export class RoomTypesService {
     await this.roomTypeRepository.softRemove(roomType);
   }
 
-  async restoreByPublicId(publicId: string, tenantId: number): Promise<RoomType> {
+  async restoreByPublicId(
+    publicId: string,
+    tenantId: number,
+  ): Promise<RoomType> {
     const roomType = await this.roomTypeRepository.findOne({
       where: { publicId, tenantId },
       withDeleted: true,
     });
 
     if (!roomType) {
-      throw new NotFoundException(`Room type with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Room type with public ID ${publicId} not found`,
+      );
     }
 
     if (!roomType.deletedAt) {

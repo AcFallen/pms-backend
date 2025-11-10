@@ -12,7 +12,10 @@ export class FolioChargesService {
     private readonly folioChargeRepository: Repository<FolioCharge>,
   ) {}
 
-  async create(createFolioChargeDto: CreateFolioChargeDto, tenantId: number): Promise<FolioCharge> {
+  async create(
+    createFolioChargeDto: CreateFolioChargeDto,
+    tenantId: number,
+  ): Promise<FolioCharge> {
     const folioCharge = this.folioChargeRepository.create({
       ...createFolioChargeDto,
       tenantId,
@@ -49,7 +52,9 @@ export class FolioChargesService {
     });
 
     if (!folioCharge) {
-      throw new NotFoundException(`Folio charge with public ID ${publicId} not found`);
+      throw new NotFoundException(
+        `Folio charge with public ID ${publicId} not found`,
+      );
     }
 
     return folioCharge;
@@ -65,7 +70,10 @@ export class FolioChargesService {
     });
   }
 
-  async update(id: number, updateFolioChargeDto: UpdateFolioChargeDto): Promise<FolioCharge> {
+  async update(
+    id: number,
+    updateFolioChargeDto: UpdateFolioChargeDto,
+  ): Promise<FolioCharge> {
     const folioCharge = await this.findOne(id);
 
     Object.assign(folioCharge, updateFolioChargeDto);

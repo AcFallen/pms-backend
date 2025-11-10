@@ -26,7 +26,10 @@ import { FilterRoomsDto } from './dto/filter-rooms.dto';
 import { Room } from './entities/room.entity';
 import { RoomStatus } from './enums/room-status.enum';
 import { CleaningStatus } from './enums/cleaning-status.enum';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
@@ -56,7 +59,10 @@ export class RoomsController {
     status: 409,
     description: 'Room number already exists for this tenant',
   })
-  create(@Body() createRoomDto: CreateRoomDto, @CurrentUser() user: CurrentUserData) {
+  create(
+    @Body() createRoomDto: CreateRoomDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomsService.create(createRoomDto, user.tenantId);
   }
 
@@ -77,7 +83,8 @@ export class RoomsController {
   @Get('available-clean')
   @ApiOperation({
     summary: 'Get available and clean rooms',
-    description: 'Retrieves all rooms that are available and clean for the authenticated tenant. Useful for quickly finding rooms ready for immediate check-in.',
+    description:
+      'Retrieves all rooms that are available and clean for the authenticated tenant. Useful for quickly finding rooms ready for immediate check-in.',
   })
   @ApiResponse({
     status: 200,
@@ -91,7 +98,8 @@ export class RoomsController {
   @Get('calendar-sidebar')
   @ApiOperation({
     summary: 'Get rooms for calendar sidebar with filters',
-    description: 'Retrieves rooms for calendar sidebar with optional filters for status, cleaning status, room type, and room number search. Designed for frontend calendar sidebar.',
+    description:
+      'Retrieves rooms for calendar sidebar with optional filters for status, cleaning status, room type, and room number search. Designed for frontend calendar sidebar.',
   })
   @ApiQuery({
     name: 'search',
@@ -153,7 +161,10 @@ export class RoomsController {
     status: 404,
     description: 'Room not found',
   })
-  findOne(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  findOne(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomsService.findByPublicId(publicId, user.tenantId);
   }
 
@@ -191,7 +202,11 @@ export class RoomsController {
     @Body() updateRoomDto: UpdateRoomDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.roomsService.updateByPublicId(publicId, updateRoomDto, user.tenantId);
+    return this.roomsService.updateByPublicId(
+      publicId,
+      updateRoomDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':publicId')
@@ -214,7 +229,10 @@ export class RoomsController {
     status: 404,
     description: 'Room not found',
   })
-  remove(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  remove(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomsService.removeByPublicId(publicId, user.tenantId);
   }
 
@@ -222,7 +240,8 @@ export class RoomsController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted room (Admin only)',
-    description: 'Restores a soft-deleted room by public UUID. Only accessible by ADMIN role.',
+    description:
+      'Restores a soft-deleted room by public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',
@@ -247,7 +266,10 @@ export class RoomsController {
     status: 403,
     description: 'Forbidden - Admin role required',
   })
-  restore(@Param('publicId') publicId: string, @CurrentUser() user: CurrentUserData) {
+  restore(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
     return this.roomsService.restoreByPublicId(publicId, user.tenantId);
   }
 }

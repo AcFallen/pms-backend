@@ -19,10 +19,7 @@ export class AuthService {
    * Valida las credenciales del usuario
    * Busca por email globalmente (no requiere tenantId)
    */
-  async validateUser(
-    email: string,
-    password: string,
-  ): Promise<User | null> {
+  async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.userRepository.findOne({
       where: { email },
     });

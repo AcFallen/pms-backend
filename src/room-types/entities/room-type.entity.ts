@@ -58,7 +58,8 @@ export class RoomType {
     precision: 10,
     scale: 2,
     nullable: true,
-    comment: 'Precio mínimo de la habitación (para modo MINIMUM_PRICE del tenant, el recepcionista cobra según criterio basándose en este mínimo)',
+    comment:
+      'Precio mínimo de la habitación (para modo MINIMUM_PRICE del tenant, el recepcionista cobra según criterio basándose en este mínimo)',
   })
   minimumPrice: string | null;
 

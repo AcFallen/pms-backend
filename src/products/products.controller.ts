@@ -20,7 +20,10 @@ import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product } from './entities/product.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
@@ -69,7 +72,7 @@ export class ProductsController {
     name: 'publicId',
     type: String,
     description: 'Product public UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({
     status: 200,
@@ -91,7 +94,7 @@ export class ProductsController {
     name: 'publicId',
     type: String,
     description: 'Product public UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiBody({ type: UpdateProductDto })
   @ApiResponse({
@@ -111,7 +114,11 @@ export class ProductsController {
     @Body() updateProductDto: UpdateProductDto,
     @CurrentUser() user: CurrentUserData,
   ): Promise<Product> {
-    return this.productsService.updateByPublicId(publicId, updateProductDto, user.tenantId);
+    return this.productsService.updateByPublicId(
+      publicId,
+      updateProductDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':publicId')
@@ -120,7 +127,7 @@ export class ProductsController {
     name: 'publicId',
     type: String,
     description: 'Product public UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({ status: 200, description: 'Product deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
@@ -136,13 +143,14 @@ export class ProductsController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted product (Admin only)',
-    description: 'Restores a soft-deleted product by public UUID. Only accessible by ADMIN role.'
+    description:
+      'Restores a soft-deleted product by public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',
     type: String,
     description: 'Product public UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000'
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({
     status: 200,

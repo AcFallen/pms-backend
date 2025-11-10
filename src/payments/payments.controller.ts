@@ -22,7 +22,10 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreatePaymentToFolioDto } from './dto/create-payment-to-folio.dto';
 import { UpdatePaymentDto } from './dto/update-payment.dto';
 import { Payment } from './entities/payment.entity';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 
 @ApiTags('payments')
 @ApiBearerAuth('JWT-auth')

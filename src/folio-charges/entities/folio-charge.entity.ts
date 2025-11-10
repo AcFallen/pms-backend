@@ -49,7 +49,13 @@ export class FolioCharge {
   @Column({ type: 'varchar', length: 255, nullable: false })
   description: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false, default: 1 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    default: 1,
+  })
   quantity: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
@@ -58,7 +64,11 @@ export class FolioCharge {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   total: number;
 
-  @Column({ type: 'timestamp', nullable: false, default: () => 'CURRENT_TIMESTAMP' })
+  @Column({
+    type: 'timestamp',
+    nullable: false,
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   chargeDate: Date;
 
   @CreateDateColumn({ type: 'timestamp' })

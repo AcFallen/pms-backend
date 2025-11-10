@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateRoomDto } from './dto/create-room.dto';
@@ -53,7 +57,10 @@ export class RoomsService {
     });
   }
 
-  async findForCalendarSidebar(tenantId: number, filterDto: FilterRoomsDto): Promise<Room[]> {
+  async findForCalendarSidebar(
+    tenantId: number,
+    filterDto: FilterRoomsDto,
+  ): Promise<Room[]> {
     const queryBuilder = this.roomRepository
       .createQueryBuilder('room')
       .leftJoinAndSelect('room.roomType', 'roomType')
@@ -68,7 +75,9 @@ export class RoomsService {
 
     // Filter by room status
     if (filterDto.status) {
-      queryBuilder.andWhere('room.status = :status', { status: filterDto.status });
+      queryBuilder.andWhere('room.status = :status', {
+        status: filterDto.status,
+      });
     }
 
     // Filter by cleaning status
@@ -125,7 +134,11 @@ export class RoomsService {
     return room;
   }
 
-  async updateByPublicId(publicId: string, updateRoomDto: UpdateRoomDto, tenantId: number): Promise<Room> {
+  async updateByPublicId(
+    publicId: string,
+    updateRoomDto: UpdateRoomDto,
+    tenantId: number,
+  ): Promise<Room> {
     const room = await this.findByPublicId(publicId, tenantId);
 
     // If room type is being updated, find it by public ID
@@ -140,12 +153,17 @@ export class RoomsService {
     }
 
     // Check if room number is being updated and if it already exists
-    if (updateRoomDto.roomNumber && updateRoomDto.roomNumber !== room.roomNumber) {
+    if (
+      updateRoomDto.roomNumber &&
+      updateRoomDto.roomNumber !== room.roomNumber
+    ) {
       const existingRoom = await this.roomRepository.findOne({
         where: { roomNumber: updateRoomDto.roomNumber, tenantId },
       });
       if (existingRoom) {
-        throw new ConflictException('Room number already exists for this tenant');
+        throw new ConflictException(
+          'Room number already exists for this tenant',
+        );
       }
     }
 

@@ -27,7 +27,10 @@ import { SearchGuestDto } from './dto/search-guest.dto';
 import { Guest } from './entities/guest.entity';
 import { PaginatedGuests } from './interfaces/paginated-guests.interface';
 import { GuestSearchResponse } from './interfaces/external-api-response.interface';
-import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  CurrentUserData,
+} from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
 
@@ -81,7 +84,8 @@ export class GuestsController {
         publicId: {
           type: 'string',
           nullable: true,
-          description: 'Guest UUID if found in database, null if from external API or not found',
+          description:
+            'Guest UUID if found in database, null if from external API or not found',
           example: '550e8400-e29b-41d4-a716-446655440000',
         },
         firstName: { type: 'string', nullable: true },
@@ -125,13 +129,15 @@ export class GuestsController {
   @Get()
   @ApiOperation({
     summary: 'Get all guests with filters and pagination',
-    description: 'Retrieves guests for the authenticated tenant with optional search filter and pagination. Search applies to firstName, lastName, email, phone, and documentNumber.',
+    description:
+      'Retrieves guests for the authenticated tenant with optional search filter and pagination. Search applies to firstName, lastName, email, phone, and documentNumber.',
   })
   @ApiQuery({
     name: 'search',
     required: false,
     type: String,
-    description: 'Search term for firstName, lastName, email, phone, or documentNumber',
+    description:
+      'Search term for firstName, lastName, email, phone, or documentNumber',
     example: 'John',
   })
   @ApiQuery({
@@ -238,7 +244,11 @@ export class GuestsController {
     @Body() updateGuestDto: UpdateGuestDto,
     @CurrentUser() user: CurrentUserData,
   ): Promise<Guest> {
-    return this.guestsService.updateByPublicId(publicId, updateGuestDto, user.tenantId);
+    return this.guestsService.updateByPublicId(
+      publicId,
+      updateGuestDto,
+      user.tenantId,
+    );
   }
 
   @Delete(':publicId')
@@ -272,7 +282,8 @@ export class GuestsController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Restore deleted guest (Admin only)',
-    description: 'Restores a soft-deleted guest by public UUID. Only accessible by ADMIN role.',
+    description:
+      'Restores a soft-deleted guest by public UUID. Only accessible by ADMIN role.',
   })
   @ApiParam({
     name: 'publicId',
