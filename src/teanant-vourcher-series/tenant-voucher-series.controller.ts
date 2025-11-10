@@ -40,7 +40,6 @@ export class TenantVoucherSeriesController {
   ) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create a new voucher series (Admin only)',
