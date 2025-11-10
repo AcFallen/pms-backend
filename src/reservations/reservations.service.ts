@@ -16,10 +16,16 @@ import { Guest } from '../guests/entities/guest.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
 import { Folio } from '../folios/entities/folio.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { CleaningTask } from '../cleaning-tasks/entities/cleaning-task.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
 import { RoomStatus } from '../rooms/enums/room-status.enum';
+import { CleaningStatus } from '../rooms/enums/cleaning-status.enum';
 import { FolioStatus } from '../folios/enums/folio-status.enum';
 import { ReservationSource } from './enums/reservation-source.enum';
+import { TaskStatus } from '../cleaning-tasks/enums/task-status.enum';
+import { TaskPriority } from '../cleaning-tasks/enums/task-priority.enum';
+import { TaskType } from '../cleaning-tasks/enums/task-type.enum';
+import { CheckoutReservationDto } from './dto/checkout-reservation.dto';
 
 @Injectable()
 export class ReservationsService {
@@ -401,5 +407,135 @@ export class ReservationsService {
         checkOut: checkOutDate,
       };
     });
+  }
+
+  /**
+   * Performs checkout for a reservation.
+   * This method:
+   * 1. Validates reservation exists and is in CHECKED_IN status
+   * 2. Validates reservation has a folio
+   * 3. Validates folio is closed (no outstanding balance)
+   * 4. Validates reservation has a room assigned
+   * 5. Validates room exists
+   * 6. Updates reservation status to CHECKED_OUT
+   * 7. Updates room status to AVAILABLE and cleaning status to DIRTY
+   * 8. Creates a high-priority cleaning task for housekeeping
+   *
+   * All operations are performed in a transaction to ensure data consistency.
+   */
+  async checkout(
+    publicId: string,
+    tenantId: number,
+    dto?: CheckoutReservationDto,
+  ): Promise<Reservation> {
+    // Use QueryRunner for transaction management
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Find reservation with folio
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: { publicId, tenantId },
+        relations: ['folios'],
+      });
+
+      if (!reservation) {
+        throw new NotFoundException(
+          `Reservation with publicId ${publicId} not found`,
+        );
+      }
+
+      // 2. Validate reservation status
+      if (reservation.status !== ReservationStatus.CHECKED_IN) {
+        throw new BadRequestException(
+          `Cannot checkout reservation ${reservation.reservationCode}. Current status is ${reservation.status}. Only CHECKED_IN reservations can be checked out.`,
+        );
+      }
+
+      // 3. Validate reservation has folio
+      if (!reservation.folios || reservation.folios.length === 0) {
+        throw new BadRequestException(
+          `Cannot checkout reservation ${reservation.reservationCode}. No folio found. Please create a folio before checkout.`,
+        );
+      }
+
+      // Get the first (and should be only) folio
+      const folio = reservation.folios[0];
+
+      // 4. Validate folio is closed or has no balance
+      const balance = parseFloat(folio.balance?.toString() || '0');
+      if (folio.status !== FolioStatus.CLOSED && balance > 0) {
+        throw new BadRequestException(
+          `Cannot checkout reservation ${reservation.reservationCode}. Outstanding balance of $${balance} on folio ${folio.folioNumber}. Please settle all payments before checkout.`,
+        );
+      }
+
+      // 5. Validate reservation has a room
+      if (!reservation.roomId) {
+        throw new BadRequestException(
+          `Cannot checkout reservation ${reservation.reservationCode}. No room assigned to reservation.`,
+        );
+      }
+
+      // 6. Find the room
+      const room = await queryRunner.manager.findOne(Room, {
+        where: { id: reservation.roomId, tenantId },
+      });
+
+      if (!room) {
+        throw new NotFoundException(
+          `Room with ID ${reservation.roomId} not found`,
+        );
+      }
+
+      // 7. Update reservation to CHECKED_OUT
+      await queryRunner.manager.update(
+        Reservation,
+        { id: reservation.id },
+        {
+          status: ReservationStatus.CHECKED_OUT,
+          checkOutTime: new Date(),
+          notes: dto?.checkoutNotes
+            ? `${reservation.notes || ''}\nCheckout: ${dto.checkoutNotes}`.trim()
+            : reservation.notes,
+        },
+      );
+
+      // 8. Update room status to AVAILABLE and DIRTY
+      await queryRunner.manager.update(
+        Room,
+        { id: room.id },
+        {
+          status: RoomStatus.AVAILABLE,
+          cleaningStatus: CleaningStatus.DIRTY,
+        },
+      );
+
+      // 9. Create cleaning task
+      const cleaningTask = new CleaningTask();
+      cleaningTask.roomId = room.id;
+      cleaningTask.tenantId = tenantId;
+      cleaningTask.status = TaskStatus.PENDING;
+      cleaningTask.priority = TaskPriority.HIGH;
+      cleaningTask.taskType = TaskType.CHECKOUT;
+      cleaningTask.assignedTo = null; // Will be assigned later by supervisor
+      cleaningTask.notes = `Checkout cleaning for reservation ${reservation.reservationCode}. Guest: ${reservation.guest?.firstName || ''} ${reservation.guest?.lastName || ''}`.trim();
+
+      await queryRunner.manager.save(CleaningTask, cleaningTask);
+
+      // Commit transaction
+      await queryRunner.commitTransaction();
+
+      // Return updated reservation
+      return await this.findByPublicId(publicId, tenantId);
+    } catch (error) {
+      // Rollback transaction on error
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      // Release query runner
+      await queryRunner.release();
+    }
   }
 }

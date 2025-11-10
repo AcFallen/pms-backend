@@ -22,6 +22,7 @@ import {
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { CheckoutReservationDto } from './dto/checkout-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
 import { Reservation } from './entities/reservation.entity';
@@ -242,6 +243,41 @@ export class ReservationsController {
       updateReservationDto,
       user.tenantId,
     );
+  }
+
+  @Post(':publicId/checkout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Checkout reservation',
+    description:
+      'Performs checkout for a reservation. Validates folio is closed (no debt), updates reservation status to CHECKED_OUT, sets room to AVAILABLE + DIRTY, and creates a high-priority cleaning task.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the reservation',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiBody({ type: CheckoutReservationDto, required: false })
+  @ApiResponse({
+    status: 200,
+    description: 'Reservation successfully checked out',
+    type: Reservation,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (not checked in, has outstanding balance, etc.)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Reservation not found',
+  })
+  checkout(
+    @Param('publicId') publicId: string,
+    @Body() dto: CheckoutReservationDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.reservationsService.checkout(publicId, user.tenantId, dto);
   }
 
   @Delete(':id')
