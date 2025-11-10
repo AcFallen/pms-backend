@@ -497,6 +497,7 @@ Organization/tenant management for multi-tenancy.
 - Subscription plans: BASICO, STANDARD, PREMIUM
 - Room capacity limits (`maxRooms`)
 - Dual ID system (internal `id` + public `publicId`)
+- Logo upload support (stored in `uploads/` directory)
 
 **Relations:**
 - `Tenant` has many `Users` (OneToMany)
@@ -505,3 +506,225 @@ Organization/tenant management for multi-tenancy.
 **Enums:**
 - `TenantStatus` - Tenant account status
 - `TenantPlan` - Subscription tier
+
+### Other Modules
+The application includes additional feature modules following the same architectural patterns:
+
+**Property Management:**
+- `rooms/` - Room inventory management with status tracking
+- `room-types/` - Room categories and configurations
+- `rates/` - Pricing and rate management
+- `cleaning-tasks/` - Housekeeping task management
+
+**Guest & Reservations:**
+- `guests/` - Guest/customer information management
+- `reservations/` - Booking management with check-in/check-out tracking
+  - Uses `timestamptz` for `checkInTime` and `checkOutTime` (timezone-aware)
+  - Automatically manages room status based on reservation state
+
+**Financial:**
+- `folios/` - Guest account/folio management
+- `folio-charges/` - Individual charges on folios
+- `payments/` - Payment processing and tracking
+- `invoices/` - Invoice generation
+- `tenant-voucher-series/` - Voucher/document series management
+
+**Inventory:**
+- `products/` - Product catalog
+- `product-categories/` - Product categorization
+
+All modules follow the same patterns: multi-tenant scoping, dual ID system, TypeORM entities, validated DTOs, and Swagger documentation.
+
+## Standard Patterns
+
+### Service Pattern
+Services handle business logic and database operations:
+
+```typescript
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+
+@Injectable()
+export class EntityService {
+  constructor(
+    @InjectRepository(Entity)
+    private readonly repository: Repository<Entity>,
+  ) {}
+
+  // Always scope by tenantId for multi-tenant isolation
+  async findAllByTenant(tenantId: number): Promise<Entity[]> {
+    return await this.repository.find({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  // Use publicId for external API operations
+  async findByPublicId(publicId: string, tenantId?: number): Promise<Entity> {
+    const where: any = { publicId };
+    if (tenantId) where.tenantId = tenantId; // Optional tenant scoping
+
+    const entity = await this.repository.findOne({ where });
+    if (!entity) {
+      throw new NotFoundException(`Entity with ID ${publicId} not found`);
+    }
+    return entity;
+  }
+
+  async create(dto: CreateDto, tenantId: number): Promise<Entity> {
+    const entity = this.repository.create({
+      ...dto,
+      tenantId,
+    });
+    return await this.repository.save(entity);
+  }
+
+  async updateByPublicId(publicId: string, dto: UpdateDto): Promise<Entity> {
+    const entity = await this.findByPublicId(publicId);
+    Object.assign(entity, dto);
+    return await this.repository.save(entity);
+  }
+
+  // Soft delete pattern
+  async removeByPublicId(publicId: string): Promise<void> {
+    const entity = await this.findByPublicId(publicId);
+    await this.repository.softRemove(entity);
+  }
+}
+```
+
+### Controller Pattern
+Controllers are thin, delegating to services:
+
+```typescript
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth } from '@nestjs/swagger';
+import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
+
+@ApiTags('resource-name')
+@ApiBearerAuth('JWT-auth')
+@Controller('resource')
+export class ResourceController {
+  constructor(private readonly service: ResourceService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new resource' })
+  @ApiResponse({ status: 201, type: Resource })
+  create(
+    @Body() dto: CreateDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.service.create(dto, user.tenantId);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Get all resources for tenant' })
+  findAllByTenant(@CurrentUser() user: CurrentUserData) {
+    return this.service.findAllByTenant(user.tenantId);
+  }
+
+  @Get(':publicId')
+  @ApiOperation({ summary: 'Get resource by ID' })
+  @ApiParam({ name: 'publicId', type: String, description: 'Resource UUID' })
+  findOne(@Param('publicId') publicId: string) {
+    return this.service.findByPublicId(publicId);
+  }
+
+  @Patch(':publicId')
+  @ApiOperation({ summary: 'Update resource' })
+  update(
+    @Param('publicId') publicId: string,
+    @Body() dto: UpdateDto,
+  ) {
+    return this.service.updateByPublicId(publicId, dto);
+  }
+
+  @Delete(':publicId')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete resource' })
+  @ApiResponse({ status: 200, description: 'Resource deleted successfully' })
+  remove(@Param('publicId') publicId: string) {
+    return this.service.removeByPublicId(publicId);
+  }
+}
+```
+
+### DTO Pattern
+Use `@nestjs/swagger` (not `@nestjs/mapped-types`) for Update DTOs:
+
+```typescript
+import { PartialType } from '@nestjs/swagger'; // IMPORTANT: Use @nestjs/swagger
+import { CreateResourceDto } from './create-resource.dto';
+
+export class UpdateResourceDto extends PartialType(CreateResourceDto) {}
+```
+
+## Important Conventions
+
+### Timestamp Fields
+- **Local timestamps**: Use `timestamp` type for date fields without timezone concerns
+  ```typescript
+  @CreateDateColumn({ type: 'timestamp' })
+  createdAt: Date;
+  ```
+
+- **Timezone-aware timestamps**: Use `timestamptz` for fields that need timezone information
+  ```typescript
+  @Column({ type: 'timestamptz', nullable: true })
+  checkInTime: Date;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  checkOutTime: Date;
+  ```
+
+### Soft Deletes
+Use TypeORM's built-in soft delete support:
+```typescript
+@DeleteDateColumn({ type: 'timestamp', nullable: true })
+deletedAt?: Date;
+```
+
+Then use `softRemove()` or `softDelete()` methods instead of `remove()` or `delete()`.
+
+### File Uploads
+Static files are served from the `uploads/` directory:
+- **Access URL**: `http://localhost:3000/uploads/`
+- **Configuration**: Set up in [main.ts](src/main.ts) using `app.useStaticAssets()`
+- **Example**: Tenant logo uploads stored in `uploads/logos/`
+
+### Entity Relations
+Key relationships in the system:
+- **Tenant** → (OneToMany) → User, Room, RoomType, Guest, Reservation, Folio, etc.
+- **User** → (ManyToOne) → Tenant
+- **Room** → (ManyToOne) → RoomType, Tenant
+- **Reservation** → (ManyToOne) → Guest, Room, RoomType, Tenant
+- **Reservation** → (OneToMany) → Folio
+- **Folio** → (ManyToOne) → Reservation
+- **Folio** → (OneToMany) → FolioCharge, Payment
+
+**Important**: Relations should use `@Exclude()` decorator and not be auto-loaded for performance:
+```typescript
+@Exclude()
+@ManyToOne(() => Tenant, { nullable: false })
+@JoinColumn({ name: 'tenantId' })
+tenant: Tenant;
+```
+
+## Best Practices Checklist
+
+When implementing new features, ensure:
+- [ ] Entity uses dual ID system (`id` + `publicId`)
+- [ ] Entity is scoped to `tenantId`
+- [ ] Sensitive fields use `@Exclude()` decorator
+- [ ] Indexes on `(tenantId, publicId)` and common query patterns
+- [ ] Service methods filter by `tenantId`
+- [ ] Controller uses `publicId` in URL parameters
+- [ ] DTOs documented with `@ApiProperty`
+- [ ] Controller documented with `@ApiTags`, `@ApiOperation`
+- [ ] Use `@CurrentUser()` to access authenticated user
+- [ ] Validation decorators on all DTO fields
+- [ ] Update DTOs use `PartialType` from `@nestjs/swagger`
+- [ ] Use `int` for ID types (not `bigint`)
+- [ ] Use `timestamptz` for timezone-aware date fields
+- [ ] Relations use `@Exclude()` and not auto-loaded

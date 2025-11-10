@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, QueryRunner } from 'typeorm';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
 import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
@@ -151,11 +151,7 @@ export class FoliosService {
       }
 
       // 3. Generate folio number (format: FOL-YYYY-XXXXX)
-      const year = new Date().getFullYear();
-      const folioCount = await queryRunner.manager.count(Folio, {
-        where: { tenantId },
-      });
-      const folioNumber = `FOL-${year}-${String(folioCount + 1).padStart(5, '0')}`;
+      const folioNumber = await this.generateFolioNumber(queryRunner, tenantId);
 
       // 4. Get total amount from reservation
       const totalAmount = parseFloat(reservation.totalAmount);
@@ -174,12 +170,16 @@ export class FoliosService {
 
       const savedFolio = await queryRunner.manager.save(Folio, folio);
 
-      // 6. Register payment
+      // 6. Generate reference number if not provided
+      const referenceNumber = dto.payment.referenceNumber ||
+        await this.generatePaymentReferenceNumber(queryRunner, tenantId);
+
+      // 7. Register payment
       const payment = new Payment();
       payment.folioId = savedFolio.id;
       payment.paymentMethod = dto.payment.paymentMethod;
       payment.amount = dto.payment.amount;
-      payment.referenceNumber = dto.payment.referenceNumber || null;
+      payment.referenceNumber = referenceNumber;
       payment.paymentDate = new Date();
       payment.notes = dto.payment.notes || 'Payment registered';
       payment.tenantId = tenantId;
@@ -214,5 +214,41 @@ export class FoliosService {
       // Release query runner
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Generates a unique folio number in format: FOL-YYYY-XXXXX
+   * @param queryRunner - QueryRunner instance for transaction context
+   * @param tenantId - Tenant ID for scoping
+   * @returns Generated folio number
+   */
+  private async generateFolioNumber(
+    queryRunner: QueryRunner,
+    tenantId: number,
+  ): Promise<string> {
+    const year = new Date().getFullYear();
+    const folioCount = await queryRunner.manager.count(Folio, {
+      where: { tenantId },
+    });
+    const folioNumber = `FOL-${year}-${String(folioCount + 1).padStart(5, '0')}`;
+    return folioNumber;
+  }
+
+  /**
+   * Generates a unique payment reference number in format: PAY-YYYY-XXXXX
+   * @param queryRunner - QueryRunner instance for transaction context
+   * @param tenantId - Tenant ID for scoping
+   * @returns Generated reference number
+   */
+  private async generatePaymentReferenceNumber(
+    queryRunner: QueryRunner,
+    tenantId: number,
+  ): Promise<string> {
+    const year = new Date().getFullYear();
+    const paymentCount = await queryRunner.manager.count(Payment, {
+      where: { tenantId },
+    });
+    const referenceNumber = `PAY-${year}-${String(paymentCount + 1).padStart(5, '0')}`;
+    return referenceNumber;
   }
 }

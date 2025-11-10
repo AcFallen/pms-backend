@@ -49,27 +49,51 @@ export class Folio {
   })
   status: FolioStatus;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    default: 0,
+  })
   subtotal: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    default: 0,
+  })
   tax: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    default: 0,
+  })
   total: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    nullable: false,
+    default: 0,
+  })
   balance: number;
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   closedAt: Date | null;
 
-  @CreateDateColumn({ type: 'timestamp' })
+  @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 
-  @UpdateDateColumn({ type: 'timestamp' })
+  @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }
