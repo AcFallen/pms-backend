@@ -327,6 +327,8 @@ export class InvoicesService {
         items: this.mapFolioChargesToNubefactItems(folioCharges),
       };
 
+      console.log('Nubefact Request:', nubefactRequest);
+
       // 10. Send to Nubefact
       const nubefactResponse =
         await this.nubefactService.sendInvoice(nubefactRequest);

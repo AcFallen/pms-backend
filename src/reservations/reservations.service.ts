@@ -399,6 +399,27 @@ export class ReservationsService {
       );
     }
 
+    // Manually load folio charges for each folio
+    if (reservation.folios && reservation.folios.length > 0) {
+      for (const folio of reservation.folios) {
+        const charges = await this.folioChargeRepository.find({
+          where: { folioId: folio.id, tenantId },
+          select: [
+            'publicId',
+            'chargeType',
+            'description',
+            'quantity',
+            'unitPrice',
+            'total',
+            'chargeDate',
+            'createdAt',
+          ],
+          order: { chargeDate: 'ASC' },
+        });
+        folio['charges'] = charges;
+      }
+    }
+
     return reservation;
   }
 
