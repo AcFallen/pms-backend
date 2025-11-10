@@ -20,6 +20,7 @@ import {
 import { FoliosService } from './folios.service';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
+import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
 import { Folio } from './entities/folio.entity';
 import { CurrentUser, CurrentUserData } from '../auth/decorators/current-user.decorator';
 
@@ -54,6 +55,45 @@ export class FoliosController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.foliosService.create(createFolioDto, user.tenantId);
+  }
+
+  @Post('create-with-payment')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create folio with payment for existing reservation',
+    description: `Creates a folio and registers payment for an existing reservation in a single atomic transaction.
+
+    This endpoint is designed for the second step after creating a reservation:
+    STEP 1: POST /reservations (creates reservation, may set status to CHECKED_IN)
+    STEP 2: POST /folios/create-with-payment (creates folio + registers payment)
+
+    This method:
+    1. Validates the reservation exists and belongs to the tenant
+    2. Creates a folio for the reservation (auto-generates folio number)
+    3. Registers the payment
+    4. Updates folio status to CLOSED if payment covers total amount
+
+    IMPORTANT: This does NOT create or modify the reservation. The reservation must already exist.`,
+  })
+  @ApiBody({ type: CreateFolioWithPaymentDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Folio successfully created with payment registered',
+    type: Folio,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error or reservation already has a folio',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Reservation not found',
+  })
+  createWithPayment(
+    @Body() dto: CreateFolioWithPaymentDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.foliosService.createWithPayment(dto, user.tenantId);
   }
 
   @Get()

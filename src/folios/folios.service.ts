@@ -2,18 +2,24 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
+import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
 import { Folio } from './entities/folio.entity';
+import { Reservation } from '../reservations/entities/reservation.entity';
+import { Payment } from '../payments/entities/payment.entity';
+import { FolioStatus } from './enums/folio-status.enum';
 
 @Injectable()
 export class FoliosService {
   constructor(
     @InjectRepository(Folio)
     private readonly folioRepository: Repository<Folio>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(createFolioDto: CreateFolioDto, tenantId: number): Promise<Folio> {
@@ -93,5 +99,120 @@ export class FoliosService {
   async remove(id: number): Promise<void> {
     const folio = await this.findOne(id);
     await this.folioRepository.remove(folio);
+  }
+
+  /**
+   * Creates a folio with payment for an existing reservation.
+   * This method:
+   * 1. Validates the reservation exists and belongs to the tenant
+   * 2. Creates a folio for the reservation
+   * 3. Registers the payment
+   * 4. Updates folio status to CLOSED if payment covers total amount
+   *
+   * NOTE: This does NOT create or modify the reservation.
+   * The reservation must already exist (created via POST /reservations).
+   */
+  async createWithPayment(
+    dto: CreateFolioWithPaymentDto,
+    tenantId: number,
+  ): Promise<Folio> {
+    // Use QueryRunner for transaction management
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Find reservation by publicId
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: {
+          publicId: dto.reservationPublicId,
+          tenantId,
+        },
+      });
+
+      if (!reservation) {
+        throw new NotFoundException(
+          `Reservation with publicId ${dto.reservationPublicId} not found`,
+        );
+      }
+
+      // 2. Validate reservation doesn't already have a folio
+      const existingFolio = await queryRunner.manager.findOne(Folio, {
+        where: {
+          reservationId: reservation.id,
+          tenantId,
+        },
+      });
+
+      if (existingFolio) {
+        throw new BadRequestException(
+          `Reservation ${dto.reservationPublicId} already has a folio (${existingFolio.folioNumber})`,
+        );
+      }
+
+      // 3. Generate folio number (format: FOL-YYYY-XXXXX)
+      const year = new Date().getFullYear();
+      const folioCount = await queryRunner.manager.count(Folio, {
+        where: { tenantId },
+      });
+      const folioNumber = `FOL-${year}-${String(folioCount + 1).padStart(5, '0')}`;
+
+      // 4. Get total amount from reservation
+      const totalAmount = parseFloat(reservation.totalAmount);
+
+      // 5. Create folio
+      const folio = new Folio();
+      folio.reservationId = reservation.id;
+      folio.folioNumber = folioNumber;
+      folio.status = FolioStatus.OPEN;
+      folio.subtotal = totalAmount;
+      folio.tax = 0;
+      folio.total = totalAmount;
+      folio.balance = totalAmount - dto.payment.amount;
+      folio.notes = dto.folioNotes || 'Folio created with payment';
+      folio.tenantId = tenantId;
+
+      const savedFolio = await queryRunner.manager.save(Folio, folio);
+
+      // 6. Register payment
+      const payment = new Payment();
+      payment.folioId = savedFolio.id;
+      payment.paymentMethod = dto.payment.paymentMethod;
+      payment.amount = dto.payment.amount;
+      payment.referenceNumber = dto.payment.referenceNumber || null;
+      payment.paymentDate = new Date();
+      payment.notes = dto.payment.notes || 'Payment registered';
+      payment.tenantId = tenantId;
+
+      await queryRunner.manager.save(Payment, payment);
+
+      // 7. Update folio status to CLOSED if payment covers total amount
+      if (dto.payment.amount >= totalAmount) {
+        await queryRunner.manager.update(Folio,
+          { id: savedFolio.id },
+          {
+            status: FolioStatus.CLOSED,
+            balance: 0,
+            closedAt: new Date(),
+          }
+        );
+        savedFolio.status = FolioStatus.CLOSED;
+        savedFolio.balance = 0;
+        savedFolio.closedAt = new Date();
+      }
+
+      // Commit transaction
+      await queryRunner.commitTransaction();
+
+      return savedFolio;
+
+    } catch (error) {
+      // Rollback transaction on error
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      // Release query runner
+      await queryRunner.release();
+    }
   }
 }
