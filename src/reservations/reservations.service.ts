@@ -366,9 +366,12 @@ export class ReservationsService {
       .leftJoinAndSelect('reservation.guest', 'guest')
       .leftJoinAndSelect('reservation.room', 'room')
       .where('reservation.tenantId = :tenantId', { tenantId })
-      // Exclude cancelled reservations from calendar
-      .andWhere('reservation.status != :cancelledStatus', {
-        cancelledStatus: ReservationStatus.CANCELLED,
+      // Exclude cancelled and checked-out reservations from calendar
+      .andWhere('reservation.status NOT IN (:...excludedStatuses)', {
+        excludedStatuses: [
+          ReservationStatus.CANCELLED,
+          ReservationStatus.CHECKED_OUT,
+        ],
       })
       // Find reservations that overlap with the date range
       // A reservation overlaps if: checkInDate <= endDate AND checkOutDate >= startDate

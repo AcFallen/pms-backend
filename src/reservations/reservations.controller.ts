@@ -84,7 +84,7 @@ export class ReservationsController {
   @ApiOperation({
     summary: 'Get reservations for calendar grid',
     description:
-      'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
+      'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled and checked-out reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
   })
   @ApiQuery({
     name: 'startDate',
