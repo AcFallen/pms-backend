@@ -21,6 +21,7 @@ import { FoliosService } from './folios.service';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
 import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
+import { AddPaymentToFolioDto } from './dto/add-payment-to-folio.dto';
 import { Folio } from './entities/folio.entity';
 import {
   CurrentUser,
@@ -60,43 +61,45 @@ export class FoliosController {
     return this.foliosService.create(createFolioDto, user.tenantId);
   }
 
-  @Post('create-with-payment')
+  @Post('add-payment')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Create folio with payment for existing reservation',
-    description: `Creates a folio and registers payment for an existing reservation in a single atomic transaction.
+    summary: 'Add payment to existing folio',
+    description: `Registers a payment for an existing folio in an atomic transaction.
 
-    This endpoint is designed for the second step after creating a reservation:
-    STEP 1: POST /reservations (creates reservation, may set status to CHECKED_IN)
-    STEP 2: POST /folios/create-with-payment (creates folio + registers payment)
+    Since folios are now automatically created when reservations are created, this endpoint
+    is used to register payments for those existing folios.
+
+    Workflow:
+    STEP 1: POST /reservations (creates reservation + folio + folio charge automatically)
+    STEP 2: POST /folios/add-payment (registers payment for the existing folio)
 
     This method:
-    1. Validates the reservation exists and belongs to the tenant
-    2. Creates a folio for the reservation (auto-generates folio number)
-    3. Registers the payment
-    4. Updates folio status to CLOSED if payment covers total amount
-
-    IMPORTANT: This does NOT create or modify the reservation. The reservation must already exist.`,
+    1. Validates the folio exists and is not closed
+    2. Validates payment amount doesn't exceed balance
+    3. Registers the payment (auto-generates payment reference if not provided)
+    4. Updates folio balance
+    5. Closes folio if fully paid (balance = 0)`,
   })
-  @ApiBody({ type: CreateFolioWithPaymentDto })
+  @ApiBody({ type: AddPaymentToFolioDto })
   @ApiResponse({
     status: 201,
-    description: 'Folio successfully created with payment registered',
+    description: 'Payment successfully registered',
     type: Folio,
   })
   @ApiResponse({
     status: 400,
-    description: 'Validation error or reservation already has a folio',
+    description: 'Validation error, folio closed, or payment exceeds balance',
   })
   @ApiResponse({
     status: 404,
-    description: 'Reservation not found',
+    description: 'Folio not found',
   })
-  createWithPayment(
-    @Body() dto: CreateFolioWithPaymentDto,
+  addPayment(
+    @Body() dto: AddPaymentToFolioDto,
     @CurrentUser() user: CurrentUserData,
   ) {
-    return this.foliosService.createWithPayment(dto, user.tenantId);
+    return this.foliosService.addPayment(dto, user.tenantId);
   }
 
   @Get()

@@ -159,19 +159,22 @@ export class ReservationsService {
       const folioNumber = await this.generateFolioNumber(queryRunner, tenantId);
 
       // Create folio for the reservation
-      const folio = queryRunner.manager.create(Folio, {
-        tenantId,
-        reservationId: savedReservation.id,
-        folioNumber,
-        status: FolioStatus.OPEN,
-        subtotal: createReservationDto.totalAmount,
-        tax: 0,
-        total: createReservationDto.totalAmount,
-        balance: createReservationDto.totalAmount,
-        notes: null,
-      });
+      const folioTotal = parseFloat(
+        createReservationDto.totalAmount.toString(),
+      );
 
-      const savedFolio = await queryRunner.manager.save(Folio, folio);
+      const folio = new Folio();
+      folio.tenantId = tenantId;
+      folio.reservationId = savedReservation.id;
+      folio.folioNumber = folioNumber;
+      folio.status = FolioStatus.OPEN;
+      folio.subtotal = folioTotal;
+      folio.tax = 0;
+      folio.total = folioTotal;
+      folio.balance = folioTotal;
+      folio.notes = null;
+
+      const savedFolio = await queryRunner.manager.save(folio);
 
       // Create folio charge for room accommodation
       const roomDescription = room

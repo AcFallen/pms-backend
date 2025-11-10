@@ -9,6 +9,7 @@ import { Repository, DataSource, QueryRunner } from 'typeorm';
 import { CreateFolioDto } from './dto/create-folio.dto';
 import { UpdateFolioDto } from './dto/update-folio.dto';
 import { CreateFolioWithPaymentDto } from './dto/create-folio-with-payment.dto';
+import { AddPaymentToFolioDto } from './dto/add-payment-to-folio.dto';
 import { Folio } from './entities/folio.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
 import { Payment } from '../payments/entities/payment.entity';
@@ -105,117 +106,97 @@ export class FoliosService {
   }
 
   /**
-   * Creates a folio with payment for an existing reservation.
-   * This method:
-   * 1. Validates the reservation exists and belongs to the tenant
-   * 2. Creates a folio for the reservation
-   * 3. Registers the payment
-   * 4. Updates folio status to CLOSED if payment covers total amount
-   *
-   * NOTE: This does NOT create or modify the reservation.
-   * The reservation must already exist (created via POST /reservations).
+   * Add payment to existing folio
+   * This registers a payment for an existing folio (created automatically with reservation)
+   * Updates folio balance and status if fully paid
    */
-  async createWithPayment(
-    dto: CreateFolioWithPaymentDto,
+  async addPayment(
+    dto: AddPaymentToFolioDto,
     tenantId: number,
   ): Promise<Folio> {
-    // Use QueryRunner for transaction management
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      // 1. Find reservation by publicId
-      const reservation = await queryRunner.manager.findOne(Reservation, {
+      // 1. Find folio by publicId
+      const folio = await queryRunner.manager.findOne(Folio, {
         where: {
-          publicId: dto.reservationPublicId,
+          publicId: dto.folioPublicId,
           tenantId,
         },
       });
 
-      if (!reservation) {
+      if (!folio) {
         throw new NotFoundException(
-          `Reservation with publicId ${dto.reservationPublicId} not found`,
+          `Folio with publicId ${dto.folioPublicId} not found`,
         );
       }
 
-      // 2. Validate reservation doesn't already have a folio
-      const existingFolio = await queryRunner.manager.findOne(Folio, {
-        where: {
-          reservationId: reservation.id,
-          tenantId,
-        },
-      });
-
-      if (existingFolio) {
+      // 2. Validate folio is not already closed
+      if (folio.status === FolioStatus.CLOSED) {
         throw new BadRequestException(
-          `Reservation ${dto.reservationPublicId} already has a folio (${existingFolio.folioNumber})`,
+          `Folio ${folio.folioNumber} is already CLOSED. Cannot add payment to closed folio.`,
         );
       }
 
-      // 3. Generate folio number (format: FOL-YYYY-XXXXX)
-      const folioNumber = await this.generateFolioNumber(queryRunner, tenantId);
+      // 3. Validate payment amount doesn't exceed balance
+      const currentBalance = parseFloat(folio.balance.toString());
+      if (dto.amount > currentBalance) {
+        throw new BadRequestException(
+          `Payment amount (${dto.amount}) exceeds folio balance (${currentBalance})`,
+        );
+      }
 
-      // 4. Get total amount from reservation
-      const totalAmount = parseFloat(reservation.totalAmount);
-
-      // 5. Create folio
-      const folio = new Folio();
-      folio.reservationId = reservation.id;
-      folio.folioNumber = folioNumber;
-      folio.status = FolioStatus.OPEN;
-      folio.subtotal = totalAmount;
-      folio.tax = 0;
-      folio.total = totalAmount;
-      folio.balance = totalAmount - dto.payment.amount;
-      folio.notes = dto.folioNotes || 'Folio created with payment';
-      folio.tenantId = tenantId;
-
-      const savedFolio = await queryRunner.manager.save(Folio, folio);
-
-      // 6. Generate reference number if not provided
+      // 4. Generate reference number if not provided
       const referenceNumber =
-        dto.payment.referenceNumber ||
+        dto.referenceNumber ||
         (await this.generatePaymentReferenceNumber(queryRunner, tenantId));
 
-      // 7. Register payment
+      // 5. Register payment
       const payment = new Payment();
-      payment.folioId = savedFolio.id;
-      payment.paymentMethod = dto.payment.paymentMethod;
-      payment.amount = dto.payment.amount;
+      payment.folioId = folio.id;
+      payment.paymentMethod = dto.paymentMethod;
+      payment.amount = dto.amount;
       payment.referenceNumber = referenceNumber;
       payment.paymentDate = new Date();
-      payment.notes = dto.payment.notes || 'Payment registered';
+      payment.notes = dto.notes || 'Payment registered';
       payment.tenantId = tenantId;
 
       await queryRunner.manager.save(Payment, payment);
 
-      // 7. Update folio status to CLOSED if payment covers total amount
-      if (dto.payment.amount >= totalAmount) {
+      // 6. Update folio balance
+      const newBalance = currentBalance - dto.amount;
+
+      // 7. Update folio status to CLOSED if fully paid
+      if (newBalance <= 0) {
         await queryRunner.manager.update(
           Folio,
-          { id: savedFolio.id },
+          { id: folio.id },
           {
             status: FolioStatus.CLOSED,
             balance: 0,
             closedAt: new Date(),
           },
         );
-        savedFolio.status = FolioStatus.CLOSED;
-        savedFolio.balance = 0;
-        savedFolio.closedAt = new Date();
+        folio.status = FolioStatus.CLOSED;
+        folio.balance = 0;
+        folio.closedAt = new Date();
+      } else {
+        await queryRunner.manager.update(
+          Folio,
+          { id: folio.id },
+          { balance: newBalance },
+        );
+        folio.balance = newBalance;
       }
 
-      // Commit transaction
       await queryRunner.commitTransaction();
-
-      return savedFolio;
+      return folio;
     } catch (error) {
-      // Rollback transaction on error
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
-      // Release query runner
       await queryRunner.release();
     }
   }
