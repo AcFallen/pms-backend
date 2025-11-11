@@ -9,6 +9,9 @@ import { Repository, DataSource } from 'typeorm';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
+import { FilterInvoicesDto } from './dto/filter-invoices.dto';
+import { PaginatedInvoicesResponseDto } from './dto/paginated-invoices-response.dto';
+import { InvoiceListItemDto } from './dto/invoice-list-item.dto';
 import { Invoice } from './entities/invoice.entity';
 import { Folio } from '../folios/entities/folio.entity';
 import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
@@ -45,53 +48,94 @@ export class InvoicesService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async create(
-    createInvoiceDto: CreateInvoiceDto,
-    tenantId: number,
-  ): Promise<Invoice> {
-    // Check if invoice with same series and number already exists
-    const existingInvoice = await this.invoiceRepository.findOne({
-      where: {
-        tenantId,
-        series: createInvoiceDto.series,
-        number: createInvoiceDto.number,
-      },
-    });
 
-    if (existingInvoice) {
-      throw new ConflictException(
-        `Invoice with series ${createInvoiceDto.series} and number ${createInvoiceDto.number} already exists`,
+  async findAll(
+    tenantId: number,
+    filters: FilterInvoicesDto,
+  ): Promise<PaginatedInvoicesResponseDto> {
+    const {
+      page = 1,
+      limit = 10,
+      invoiceType,
+      customerDocumentType,
+      customerDocumentNumber,
+      createdAtStart,
+      createdAtEnd,
+    } = filters;
+
+    // Build query
+    const query = this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .leftJoinAndSelect('invoice.folio', 'folio')
+      .where('invoice.tenantId = :tenantId', { tenantId });
+
+    // Apply filters
+    if (invoiceType) {
+      query.andWhere('invoice.invoiceType = :invoiceType', { invoiceType });
+    }
+
+    if (customerDocumentType) {
+      query.andWhere('invoice.customerDocumentType = :customerDocumentType', {
+        customerDocumentType,
+      });
+    }
+
+    if (customerDocumentNumber) {
+      query.andWhere('invoice.customerDocumentNumber ILIKE :customerDocumentNumber', {
+        customerDocumentNumber: `%${customerDocumentNumber}%`,
+      });
+    }
+
+    if (createdAtStart && createdAtEnd) {
+      query.andWhere(
+        'DATE(invoice.createdAt) BETWEEN :createdAtStart AND :createdAtEnd',
+        {
+          createdAtStart,
+          createdAtEnd,
+        },
       );
     }
 
-    const invoice = this.invoiceRepository.create({
-      ...createInvoiceDto,
-      tenantId,
-    });
-    return this.invoiceRepository.save(invoice);
-  }
+    // Order by creation date descending
+    query.orderBy('invoice.createdAt', 'DESC');
 
-  async findAll(): Promise<Invoice[]> {
-    return this.invoiceRepository.find({
-      relations: ['folio'],
-      order: {
-        issueDate: 'DESC',
+    // Apply pagination
+    const skip = (page - 1) * limit;
+    query.skip(skip).take(limit);
+
+    // Execute query
+    const [invoices, total] = await query.getManyAndCount();
+
+    // Transform to DTO
+    const data: InvoiceListItemDto[] = invoices.map((invoice) => ({
+      publicId: invoice.publicId,
+      fullNumber: invoice.fullNumber,
+      invoiceType: invoice.invoiceType,
+      customerDocumentType: invoice.customerDocumentType,
+      customerDocumentNumber: invoice.customerDocumentNumber,
+      customerName: invoice.customerName,
+      total: parseFloat(invoice.total.toString()),
+      status: invoice.status,
+      issueDate: invoice.issueDate,
+      pdfUrl: invoice.pdfUrl,
+      folioNumber: invoice.folio?.folioNumber || 'N/A',
+    }));
+
+    // Calculate total pages
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
       },
-    });
+    };
   }
 
-  async findOne(id: number): Promise<Invoice> {
-    const invoice = await this.invoiceRepository.findOne({
-      where: { id },
-      relations: ['folio'],
-    });
 
-    if (!invoice) {
-      throw new NotFoundException(`Invoice with ID ${id} not found`);
-    }
-
-    return invoice;
-  }
 
   async findByPublicId(publicId: string): Promise<Invoice> {
     const invoice = await this.invoiceRepository.findOne({
@@ -108,71 +152,7 @@ export class InvoicesService {
     return invoice;
   }
 
-  async findByFolioId(folioId: number): Promise<Invoice[]> {
-    return this.invoiceRepository.find({
-      where: { folioId },
-      relations: ['folio'],
-      order: {
-        issueDate: 'DESC',
-      },
-    });
-  }
 
-  async findByFullNumber(
-    fullNumber: string,
-    tenantId: number,
-  ): Promise<Invoice> {
-    const invoice = await this.invoiceRepository.findOne({
-      where: { fullNumber, tenantId },
-      relations: ['folio'],
-    });
-
-    if (!invoice) {
-      throw new NotFoundException(
-        `Invoice with full number ${fullNumber} not found`,
-      );
-    }
-
-    return invoice;
-  }
-
-  async update(
-    id: number,
-    updateInvoiceDto: UpdateInvoiceDto,
-  ): Promise<Invoice> {
-    const invoice = await this.findOne(id);
-
-    // If updating series/number, check for conflicts
-    if (
-      (updateInvoiceDto.series && updateInvoiceDto.series !== invoice.series) ||
-      (updateInvoiceDto.number && updateInvoiceDto.number !== invoice.number)
-    ) {
-      const newSeries = updateInvoiceDto.series || invoice.series;
-      const newNumber = updateInvoiceDto.number || invoice.number;
-
-      const existingInvoice = await this.invoiceRepository.findOne({
-        where: {
-          tenantId: invoice.tenantId,
-          series: newSeries,
-          number: newNumber,
-        },
-      });
-
-      if (existingInvoice && existingInvoice.id !== invoice.id) {
-        throw new ConflictException(
-          `Invoice with series ${newSeries} and number ${newNumber} already exists`,
-        );
-      }
-    }
-
-    Object.assign(invoice, updateInvoiceDto);
-    return this.invoiceRepository.save(invoice);
-  }
-
-  async remove(id: number): Promise<void> {
-    const invoice = await this.findOne(id);
-    await this.invoiceRepository.remove(invoice);
-  }
 
   /**
    * Generate invoice from folio and send to SUNAT via Nubefact
