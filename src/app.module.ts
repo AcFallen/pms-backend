@@ -22,6 +22,7 @@ import { InvoicesModule } from './invoices/invoices.module';
 import { TenantVoucherSeriesModule } from './teanant-vourcher-series/tenant-voucher-serie.module';
 import { ScheduledTasksModule } from './scheduled-tasks/scheduled-tasks.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { CashierModule } from './cashier/cashier.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     InvoicesModule,
     ScheduledTasksModule,
     DashboardModule,
+    CashierModule,
   ],
   controllers: [AppController],
   providers: [AppService],

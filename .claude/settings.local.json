@@ -3,7 +3,8 @@
     "allow": [
       "Bash(nest g res:*)",
       "Bash(tree:*)",
-      "Bash(nest g:*)"
+      "Bash(nest g:*)",
+      "Bash(nest g resource:*)"
     ],
     "deny": [],
     "ask": []
