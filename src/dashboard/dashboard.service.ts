@@ -41,11 +41,10 @@ export class DashboardService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    // 1. Número de check-ins hoy (reservas con estado CHECKED_IN creadas hoy)
+    // 1. Número de check-ins hoy (reservas que hicieron check-in hoy, independientemente del estado actual)
     const checkInsToday = await this.reservationRepository.count({
       where: {
         tenantId,
-        status: ReservationStatus.CHECKED_IN,
         checkInTime: Between(todayStart, todayEnd),
       },
     });
