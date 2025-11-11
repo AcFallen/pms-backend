@@ -11,11 +11,13 @@ import {
 import { Exclude } from 'class-transformer';
 import { ChargeType } from '../enums/charge-type.enum';
 import { Folio } from '../../folios/entities/folio.entity';
+import { Invoice } from '../../invoices/entities/invoice.entity';
 
 @Entity('folio_charges')
 @Index(['tenantId', 'publicId'], { unique: true })
 @Index(['tenantId', 'folioId'])
 @Index(['tenantId', 'chargeDate'])
+@Index(['tenantId', 'invoiceId'])
 export class FolioCharge {
   @Exclude()
   @PrimaryGeneratedColumn('increment', { type: 'int' })
@@ -63,6 +65,21 @@ export class FolioCharge {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: false })
   total: number;
+
+  @Column({
+    type: 'boolean',
+    nullable: false,
+    default: true,
+  })
+  includedInInvoice: boolean;
+
+  @Column({ type: 'int', nullable: true })
+  invoiceId: number | null;
+
+  @Exclude()
+  @ManyToOne(() => Invoice, { nullable: true })
+  @JoinColumn({ name: 'invoiceId' })
+  invoice: Invoice | null;
 
   @Column({
     type: 'timestamp',

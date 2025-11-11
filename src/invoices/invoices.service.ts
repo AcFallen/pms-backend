@@ -1,11 +1,10 @@
 import {
   Injectable,
   NotFoundException,
-  ConflictException,
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
@@ -211,61 +210,81 @@ export class InvoicesService {
         );
       }
 
-      // 2. Check if folio already has an invoice
-      const existingInvoice = await queryRunner.manager.findOne(Invoice, {
-        where: { folioId: folio.id, tenantId },
-      });
+      // 2. Note: We no longer check if folio already has an invoice
+      // A folio can have multiple invoices (selective invoicing)
+      // The important check is whether there are charges available to invoice (done below)
 
-      if (existingInvoice) {
-        throw new ConflictException(
-          `Folio ${folio.folioNumber} already has an invoice: ${existingInvoice.fullNumber}`,
-        );
+      // 3. Get reservation and guest data (optional for walk-in folios)
+      let reservation: Reservation | null = null;
+      let guest: Guest | null = null;
+
+      if (folio.reservationId) {
+        // Folio with reservation (hotel guest)
+        reservation = await queryRunner.manager.findOne(Reservation, {
+          where: { id: folio.reservationId, tenantId },
+        });
+
+        if (!reservation) {
+          throw new NotFoundException(
+            `Reservation for folio ${folio.folioNumber} not found`,
+          );
+        }
+
+        guest = await queryRunner.manager.findOne(Guest, {
+          where: { id: reservation.guestId, tenantId },
+        });
+
+        if (!guest) {
+          throw new NotFoundException(
+            `Guest for reservation ${reservation.reservationCode} not found`,
+          );
+        }
       }
 
-      // 3. Get reservation and guest data
-      const reservation = await queryRunner.manager.findOne(Reservation, {
-        where: { id: folio.reservationId, tenantId },
-      });
-
-      if (!reservation) {
-        throw new NotFoundException(
-          `Reservation for folio ${folio.folioNumber} not found`,
-        );
-      }
-
-      const guest = await queryRunner.manager.findOne(Guest, {
-        where: { id: reservation.guestId, tenantId },
-      });
-
-      if (!guest) {
-        throw new NotFoundException(
-          `Guest for reservation ${reservation.reservationCode} not found`,
-        );
-      }
-
-      // 4. Get folio charges (items)
+      // 4. Get folio charges (items) - only those marked for invoicing and not already invoiced
       const folioCharges = await queryRunner.manager.find(FolioCharge, {
-        where: { folioId: folio.id, tenantId },
+        where: {
+          folioId: folio.id,
+          tenantId,
+          includedInInvoice: true, // Only charges marked for invoicing
+          invoiceId: IsNull(), // Not already invoiced
+        },
         order: { chargeDate: 'ASC' },
       });
 
       if (folioCharges.length === 0) {
         throw new BadRequestException(
-          `Folio ${folio.folioNumber} has no charges to invoice`,
+          `Folio ${folio.folioNumber} has no charges available to invoice. All charges may be excluded or already invoiced.`,
         );
       }
 
       // 5. Determine customer data (from DTO or guest)
-      const customerDocumentType =
-        dto.customerDocumentType || this.mapDocumentType(guest.documentType);
+      // For walk-in folios (no reservation), customer data MUST come from DTO
+      if (!folio.reservationId && !dto.customerDocumentNumber) {
+        throw new BadRequestException(
+          'Customer document number is required for walk-in folios (POS sales)',
+        );
+      }
+
+      const customerDocumentType = dto.customerDocumentType
+        ? dto.customerDocumentType
+        : guest
+          ? this.mapDocumentType(guest.documentType)
+          : CustomerDocumentType.DNI;
+
       const customerDocumentNumber =
-        dto.customerDocumentNumber || guest.documentNumber;
-      const customerName =
-        dto.customerName ||
-        `${guest.firstName} ${guest.lastName}`.toUpperCase();
+        dto.customerDocumentNumber || guest?.documentNumber || '';
+
+      const customerName = dto.customerName
+        ? dto.customerName
+        : guest
+          ? `${guest.firstName} ${guest.lastName}`.toUpperCase()
+          : 'CLIENTE GENÉRICO';
+
       const customerAddress =
-        dto.customerAddress || guest.address || 'SIN DIRECCIÓN';
-      const customerEmail = dto.customerEmail || guest.email || undefined;
+        dto.customerAddress || guest?.address || 'SIN DIRECCIÓN';
+
+      const customerEmail = dto.customerEmail || guest?.email || undefined;
 
       // 6. Get voucher series for tenant
       const voucherType = this.mapInvoiceTypeToVoucherType(dto.invoiceType);
@@ -377,15 +396,21 @@ export class InvoicesService {
 
       await queryRunner.manager.save(Invoice, savedInvoice);
 
-      // 12. Increment voucher series number
+      // 12. Update folio charges with the invoice ID (mark as invoiced)
+      for (const charge of folioCharges) {
+        charge.invoiceId = savedInvoice.id;
+        await queryRunner.manager.save(FolioCharge, charge);
+      }
+
+      // 13. Increment voucher series number
       voucherSeries.currentNumber += 1;
       await queryRunner.manager.save(TenantVoucherSeries, voucherSeries);
 
-      // 13. Increment tenant monthly invoice counter
+      // 14. Increment tenant monthly invoice counter
       tenant.currentMonthInvoiceCount += 1;
       await queryRunner.manager.save(Tenant, tenant);
 
-      // 14. Commit transaction
+      // 15. Commit transaction
       await queryRunner.commitTransaction();
 
       return savedInvoice;

@@ -34,12 +34,14 @@ export class Folio {
   @Column({ type: 'int', nullable: false })
   tenantId: number;
 
-  @Column({ type: 'int', nullable: false })
-  reservationId: number;
+  @Column({ type: 'int', nullable: true })
+  reservationId: number | null;
 
-  @ManyToOne(() => Reservation, (reservation) => reservation.folios)
+  @ManyToOne(() => Reservation, (reservation) => reservation.folios, {
+    nullable: true,
+  })
   @JoinColumn({ name: 'reservationId' })
-  reservation: Reservation;
+  reservation: Reservation | null;
 
   @OneToMany(() => Payment, (payment) => payment.folio)
   payments: Payment[];

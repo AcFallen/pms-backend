@@ -20,6 +20,7 @@ import {
 import { FolioChargesService } from './folio-charges.service';
 import { CreateFolioChargeDto } from './dto/create-folio-charge.dto';
 import { UpdateFolioChargeDto } from './dto/update-folio-charge.dto';
+import { UpdateChargeInvoiceInclusionDto } from './dto/update-charge-invoice-inclusion.dto';
 import { FolioCharge } from './entities/folio-charge.entity';
 import {
   CurrentUser,
@@ -191,5 +192,43 @@ export class FolioChargesController {
   })
   remove(@Param('id') id: string) {
     return this.folioChargesService.remove(+id);
+  }
+
+  @Patch('public/:publicId/invoice-inclusion')
+  @ApiOperation({
+    summary: 'Update charge invoice inclusion flag',
+    description:
+      'Updates whether this charge should be included in the next invoice generation. Useful for selective invoicing (e.g., invoice room but not wine).',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the folio charge',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiBody({ type: UpdateChargeInvoiceInclusionDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Charge invoice inclusion flag updated successfully',
+    type: FolioCharge,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Charge has already been invoiced and cannot be modified',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Folio charge not found',
+  })
+  updateInvoiceInclusion(
+    @Param('publicId') publicId: string,
+    @Body() dto: UpdateChargeInvoiceInclusionDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.folioChargesService.updateInvoiceInclusion(
+      publicId,
+      dto,
+      user.tenantId,
+    );
   }
 }
