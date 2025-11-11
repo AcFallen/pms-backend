@@ -74,6 +74,29 @@ export class Tenant {
   @Column({ type: 'int', nullable: false, default: 10 })
   maxRooms: number;
 
+  @Column({
+    type: 'int',
+    nullable: false,
+    default: 0,
+    comment: 'Límite de documentos (facturas/boletas) que se pueden emitir por mes según el plan',
+  })
+  maxInvoicesPerMonth: number;
+
+  @Column({
+    type: 'int',
+    nullable: false,
+    default: 0,
+    comment: 'Contador de documentos emitidos en el mes actual',
+  })
+  currentMonthInvoiceCount: number;
+
+  @Column({
+    type: 'date',
+    nullable: true,
+    comment: 'Fecha del último reseteo del contador de documentos (YYYY-MM-01)',
+  })
+  lastInvoiceCountReset: Date | null;
+
   // Configuraciones de facturación y checkout
   @Column({
     type: 'enum',

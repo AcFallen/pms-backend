@@ -9,6 +9,7 @@ import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { TenantVoucherSeries } from '../teanant-vourcher-series/entities/tenant-voucher-series.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
 import { Guest } from '../guests/entities/guest.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Guest } from '../guests/entities/guest.entity';
       TenantVoucherSeries,
       Reservation,
       Guest,
+      Tenant,
     ]),
   ],
   controllers: [InvoicesController],

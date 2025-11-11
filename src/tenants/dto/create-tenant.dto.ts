@@ -148,6 +148,18 @@ export class CreateTenantDto {
   maxRooms?: number;
 
   @ApiProperty({
+    description: 'Maximum number of invoices (facturas/boletas) allowed per month',
+    example: 100,
+    default: 100,
+    minimum: 1,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(1)
+  maxInvoicesPerMonth?: number;
+
+  @ApiProperty({
     description:
       'Billing mode: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
     enum: BillingMode,

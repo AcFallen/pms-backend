@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
@@ -19,6 +20,7 @@ import { FolioChargesModule } from './folio-charges/folio-charges.module';
 import { PaymentsModule } from './payments/payments.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { TenantVoucherSeriesModule } from './teanant-vourcher-series/tenant-voucher-serie.module';
+import { ScheduledTasksModule } from './scheduled-tasks/scheduled-tasks.module';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { TenantVoucherSeriesModule } from './teanant-vourcher-series/tenant-vouc
       isGlobal: true,
       envFilePath: '.env',
     }),
+    ScheduleModule.forRoot(),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -57,6 +60,7 @@ import { TenantVoucherSeriesModule } from './teanant-vourcher-series/tenant-vouc
     FolioChargesModule,
     PaymentsModule,
     InvoicesModule,
+    ScheduledTasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

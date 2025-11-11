@@ -18,6 +18,7 @@ import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { TenantVoucherSeries } from '../teanant-vourcher-series/entities/tenant-voucher-series.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
 import { Guest } from '../guests/entities/guest.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { NubefactService } from './services/nubefact.service';
 import { FolioStatus } from '../folios/enums/folio-status.enum';
 import { InvoiceType } from './enums/invoice-type.enum';
@@ -166,7 +167,40 @@ export class InvoicesService {
     await queryRunner.startTransaction();
 
     try {
-      // 1. Find and validate folio
+      // 1. Get tenant and check invoice limits
+      const tenant = await queryRunner.manager.findOne(Tenant, {
+        where: { id: tenantId },
+      });
+
+      if (!tenant) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
+
+      // Check if we need to reset the monthly counter
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastResetDate = tenant.lastInvoiceCountReset
+        ? new Date(tenant.lastInvoiceCountReset)
+        : null;
+
+      // Reset counter if it's a new month or never been reset
+      if (
+        !lastResetDate ||
+        lastResetDate < currentMonthStart
+      ) {
+        tenant.currentMonthInvoiceCount = 0;
+        tenant.lastInvoiceCountReset = currentMonthStart;
+        await queryRunner.manager.save(Tenant, tenant);
+      }
+
+      // Validate invoice limit
+      if (tenant.currentMonthInvoiceCount >= tenant.maxInvoicesPerMonth) {
+        throw new BadRequestException(
+          `Monthly invoice limit reached. Your plan allows ${tenant.maxInvoicesPerMonth} invoices per month. Current count: ${tenant.currentMonthInvoiceCount}. Please upgrade your plan or wait until next month.`,
+        );
+      }
+
+      // 2. Find and validate folio
       const folio = await queryRunner.manager.findOne(Folio, {
         where: { publicId: dto.folioPublicId, tenantId },
         relations: ['reservation'],
@@ -340,7 +374,11 @@ export class InvoicesService {
       voucherSeries.currentNumber += 1;
       await queryRunner.manager.save(TenantVoucherSeries, voucherSeries);
 
-      // 13. Commit transaction
+      // 13. Increment tenant monthly invoice counter
+      tenant.currentMonthInvoiceCount += 1;
+      await queryRunner.manager.save(Tenant, tenant);
+
+      // 14. Commit transaction
       await queryRunner.commitTransaction();
 
       return savedInvoice;
