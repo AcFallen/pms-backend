@@ -9,8 +9,15 @@ import { Folio } from '../folios/entities/folio.entity';
 import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { Product } from '../products/entities/product.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { Reservation } from '../reservations/entities/reservation.entity';
+import { Room } from '../rooms/entities/room.entity';
+import { Guest } from '../guests/entities/guest.entity';
+import { RoomType } from '../room-types/entities/room-type.entity';
 import { FolioStatus } from '../folios/enums/folio-status.enum';
+import { ReservationStatus } from '../reservations/enums/reservation-status.enum';
 import { CreateWalkInSaleDto } from './dto/create-walk-in-sale.dto';
+import { AddChargeToRoomDto } from './dto/add-charge-to-room.dto';
+import { ActiveRoomResponseDto } from './dto/active-room-response.dto';
 
 @Injectable()
 export class PosService {
@@ -147,6 +154,197 @@ export class PosService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Add a charge to a room (reservation folio)
+   * Used for charging items/services to a guest's room during their stay
+   * Validates that the reservation is checked-in and folio is open
+   */
+  async addChargeToRoom(
+    dto: AddChargeToRoomDto,
+    tenantId: number,
+  ): Promise<FolioCharge> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Find and validate reservation
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: { publicId: dto.reservationPublicId, tenantId },
+      });
+
+      if (!reservation) {
+        throw new NotFoundException(
+          `Reservation with ID ${dto.reservationPublicId} not found`,
+        );
+      }
+
+      // 2. Validate reservation is checked-in
+      if (reservation.status !== ReservationStatus.CHECKED_IN) {
+        throw new BadRequestException(
+          `Cannot add charges to reservation. Guest must be checked-in. Current status: ${reservation.status}`,
+        );
+      }
+
+      // 3. Find folio for this reservation
+      const folio = await queryRunner.manager.findOne(Folio, {
+        where: { reservationId: reservation.id, tenantId },
+      });
+
+      if (!folio) {
+        throw new NotFoundException(
+          `No folio found for reservation ${reservation.reservationCode}`,
+        );
+      }
+
+      // 4. Validate folio is open
+      if (folio.status !== FolioStatus.OPEN) {
+        throw new BadRequestException(
+          `Cannot add charges to folio ${folio.folioNumber}. Folio is ${folio.status}. Only OPEN folios can receive charges.`,
+        );
+      }
+
+      // 5. If productPublicId is provided, find and validate the product
+      let productId: number | null = null;
+      let product: Product | null = null;
+
+      if (dto.productPublicId) {
+        product = await queryRunner.manager.findOne(Product, {
+          where: { publicId: dto.productPublicId, tenantId },
+        });
+
+        if (!product) {
+          throw new NotFoundException(
+            `Product with ID ${dto.productPublicId} not found`,
+          );
+        }
+
+        // Validate product is active
+        if (!product.isActive) {
+          throw new BadRequestException(
+            `Product "${product.name}" is not active and cannot be charged`,
+          );
+        }
+
+        // Validate stock if inventory tracking is enabled
+        if (product.trackInventory) {
+          if (product.stock < dto.quantity) {
+            throw new BadRequestException(
+              `Insufficient stock for product "${product.name}". Available: ${product.stock}, Requested: ${dto.quantity}`,
+            );
+          }
+        }
+
+        productId = product.id;
+      }
+
+      // 6. Calculate total
+      const total = dto.quantity * dto.unitPrice;
+
+      // 7. Create folio charge
+      const charge = queryRunner.manager.create(FolioCharge, {
+        tenantId,
+        folioId: folio.id,
+        chargeType: dto.chargeType,
+        productId: productId,
+        description: dto.description,
+        quantity: dto.quantity,
+        unitPrice: dto.unitPrice,
+        total: parseFloat(total.toFixed(2)),
+        includedInInvoice: true,
+        chargeDate: new Date(),
+      });
+
+      const savedCharge = await queryRunner.manager.save(FolioCharge, charge);
+
+      // 8. Update product stock if applicable
+      if (product && product.trackInventory) {
+        product.stock -= dto.quantity;
+        await queryRunner.manager.save(Product, product);
+      }
+
+      // 9. Update folio totals
+      const chargeSubtotal = total / 1.18;
+      const chargeTax = total - chargeSubtotal;
+
+      folio.subtotal = parseFloat(
+        (parseFloat(folio.subtotal.toString()) + chargeSubtotal).toFixed(2),
+      );
+      folio.tax = parseFloat(
+        (parseFloat(folio.tax.toString()) + chargeTax).toFixed(2),
+      );
+      folio.total = parseFloat(
+        (parseFloat(folio.total.toString()) + total).toFixed(2),
+      );
+      folio.balance = parseFloat(
+        (parseFloat(folio.balance.toString()) + total).toFixed(2),
+      );
+
+      await queryRunner.manager.save(Folio, folio);
+
+      // 10. Commit transaction
+      await queryRunner.commitTransaction();
+
+      return savedCharge;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Get all active rooms (with checked-in guests)
+   * Returns room information along with active reservation and folio details
+   * Used by POS to show available rooms for charging
+   */
+  async getActiveRooms(tenantId: number): Promise<ActiveRoomResponseDto[]> {
+    // Find all reservations with status CHECKED_IN
+    const activeReservations = await this.dataSource
+      .getRepository(Reservation)
+      .createQueryBuilder('reservation')
+      .leftJoinAndSelect('reservation.room', 'room')
+      .leftJoinAndSelect('reservation.roomType', 'roomType')
+      .leftJoinAndSelect('reservation.guest', 'guest')
+      .where('reservation.tenantId = :tenantId', { tenantId })
+      .andWhere('reservation.status = :status', {
+        status: ReservationStatus.CHECKED_IN,
+      })
+      .orderBy('room.roomNumber', 'ASC')
+      .getMany();
+
+    // For each reservation, get its folio
+    const activeRooms: ActiveRoomResponseDto[] = [];
+
+    for (const reservation of activeReservations) {
+      const folio = await this.folioRepository.findOne({
+        where: {
+          reservationId: reservation.id,
+          tenantId,
+          status: FolioStatus.OPEN,
+        },
+      });
+
+      if (folio && reservation.room && reservation.guest) {
+        activeRooms.push({
+          roomNumber: reservation.room.roomNumber,
+          roomType: reservation.roomType?.name || 'N/A',
+          reservationPublicId: reservation.publicId,
+          reservationCode: reservation.reservationCode,
+          guestName: `${reservation.guest.firstName} ${reservation.guest.lastName}`,
+          checkInDate: reservation.checkInDate,
+          checkOutDate: reservation.checkOutDate,
+          folioPublicId: folio.publicId,
+          folioNumber: folio.folioNumber,
+          folioBalance: parseFloat(folio.balance.toString()),
+        });
+      }
+    }
+
+    return activeRooms;
   }
 
   /**
