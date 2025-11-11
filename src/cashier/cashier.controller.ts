@@ -19,8 +19,10 @@ import {
 import { CashierService } from './cashier.service';
 import { OpenCashierSessionDto } from './dto/create-cashier.dto';
 import { CloseCashierSessionDto } from './dto/close-cashier.dto';
+import { AddCashierMovementDto } from './dto/add-cashier-movement.dto';
 import { PaginatedCashierSessionsDto } from './dto/paginated-cashier-sessions.dto';
 import { CashierSession } from './entities/cashier.entity';
+import { CashierMovement } from './entities/cashier-movement.entity';
 import {
   CurrentUser,
   CurrentUserData,
@@ -153,5 +155,70 @@ export class CashierController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.cashierService.findOne(publicId, user.tenantId);
+  }
+
+  @Post(':publicId/movements')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Add a cash movement to a session',
+    description:
+      'Adds a cash movement (cash in or cash out) to an open cashier session. Used for special cases like expenses, purchases, security withdrawals, or adding change.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Cashier session public ID (UUID)',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Movement added successfully',
+    type: CashierMovement,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Cashier session not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Cannot add movements to a closed session',
+  })
+  addMovement(
+    @Param('publicId') publicId: string,
+    @Body() dto: AddCashierMovementDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.cashierService.addMovement(
+      publicId,
+      dto,
+      user.userId,
+      user.tenantId,
+    );
+  }
+
+  @Get(':publicId/movements')
+  @ApiOperation({
+    summary: 'Get all movements for a cashier session',
+    description:
+      'Retrieves all cash movements (cash in and cash out) for a specific cashier session',
+  })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Cashier session public ID (UUID)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Movements retrieved successfully',
+    type: [CashierMovement],
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Cashier session not found',
+  })
+  getMovements(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.cashierService.getMovements(publicId, user.tenantId);
   }
 }

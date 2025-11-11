@@ -10,10 +10,15 @@ import {
   CashierSession,
   CashierSessionStatus,
 } from './entities/cashier.entity';
+import {
+  CashierMovement,
+  CashierMovementType,
+} from './entities/cashier-movement.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { PaymentMethod } from '../payments/enums/payment-method.enum';
 import { OpenCashierSessionDto } from './dto/create-cashier.dto';
 import { CloseCashierSessionDto } from './dto/close-cashier.dto';
+import { AddCashierMovementDto } from './dto/add-cashier-movement.dto';
 import { PaginatedCashierSessionsDto } from './dto/paginated-cashier-sessions.dto';
 import { CashierSessionListItemDto } from './dto/cashier-session-list-item.dto';
 
@@ -22,6 +27,8 @@ export class CashierService {
   constructor(
     @InjectRepository(CashierSession)
     private readonly cashierSessionRepository: Repository<CashierSession>,
+    @InjectRepository(CashierMovement)
+    private readonly cashierMovementRepository: Repository<CashierMovement>,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
   ) {}
@@ -81,7 +88,10 @@ export class CashierService {
       throw new BadRequestException('This cashier session is already closed');
     }
 
-    // Calculate expected amount (opening amount + cash payments during the session)
+    // Calculate expected amount (opening + cash payments + movements during the session)
+    const now = new Date();
+
+    // 1. Cash payments during the session
     const cashPayments = await this.paymentRepository
       .createQueryBuilder('payment')
       .select('SUM(payment.amount)', 'total')
@@ -91,13 +101,32 @@ export class CashierService {
       })
       .andWhere('payment.paymentDate BETWEEN :openedAt AND :now', {
         openedAt: session.openedAt,
-        now: new Date(),
+        now,
       })
       .getRawOne();
 
     const cashPaymentsTotal = parseFloat(cashPayments?.total || '0');
+
+    // 2. Cashier movements (CASH_IN and CASH_OUT)
+    const movements = await this.cashierMovementRepository.find({
+      where: { cashierSessionId: session.id, tenantId },
+    });
+
+    let movementsTotal = 0;
+    movements.forEach((movement) => {
+      const amount = parseFloat(movement.amount.toString());
+      if (movement.type === CashierMovementType.CASH_IN) {
+        movementsTotal += amount;
+      } else if (movement.type === CashierMovementType.CASH_OUT) {
+        movementsTotal -= amount;
+      }
+    });
+
+    // Expected = Opening + Cash Payments + (Cash In - Cash Out)
     const expectedAmount =
-      parseFloat(session.openingAmount.toString()) + cashPaymentsTotal;
+      parseFloat(session.openingAmount.toString()) +
+      cashPaymentsTotal +
+      movementsTotal;
     const difference =
       parseFloat(dto.countedAmount.toString()) - expectedAmount;
 
@@ -178,9 +207,54 @@ export class CashierService {
   }
 
   /**
+   * Calculate sales breakdown for a session
+   */
+  private async calculateSalesBreakdown(
+    sessionOpenedAt: Date,
+    sessionClosedAt: Date | null,
+    tenantId: number,
+  ): Promise<{ reservationSales: number; posSales: number }> {
+    const endDate = sessionClosedAt || new Date();
+
+    // Get all cash payments during the session with folio relations
+    const cashPayments = await this.paymentRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.folio', 'folio')
+      .leftJoinAndSelect('folio.reservation', 'reservation')
+      .where('payment.tenantId = :tenantId', { tenantId })
+      .andWhere('payment.paymentMethod = :paymentMethod', {
+        paymentMethod: PaymentMethod.CASH,
+      })
+      .andWhere('payment.paymentDate BETWEEN :openedAt AND :endDate', {
+        openedAt: sessionOpenedAt,
+        endDate,
+      })
+      .getMany();
+
+    let reservationSales = 0;
+    let posSales = 0;
+
+    cashPayments.forEach((payment) => {
+      const amount = parseFloat(payment.amount.toString());
+      // If payment has a folio with a reservation, it's reservation sales
+      if (payment.folio && payment.folio.reservation) {
+        reservationSales += amount;
+      } else {
+        // Otherwise it's POS sales (products, services, etc.)
+        posSales += amount;
+      }
+    });
+
+    return {
+      reservationSales: parseFloat(reservationSales.toFixed(2)),
+      posSales: parseFloat(posSales.toFixed(2)),
+    };
+  }
+
+  /**
    * Get a single cashier session by publicId
    */
-  async findOne(publicId: string, tenantId: number): Promise<CashierSession> {
+  async findOne(publicId: string, tenantId: number): Promise<any> {
     const session = await this.cashierSessionRepository.findOne({
       where: { publicId, tenantId },
       relations: ['openedByUser', 'closedByUser'],
@@ -192,18 +266,128 @@ export class CashierService {
       );
     }
 
-    return session;
+    // Load movements for this session
+    const movements = await this.cashierMovementRepository.find({
+      where: { cashierSessionId: session.id, tenantId },
+      relations: ['createdByUser'],
+      order: { movementDate: 'ASC' },
+    });
+
+    // Calculate sales breakdown
+    const salesBreakdown = await this.calculateSalesBreakdown(
+      session.openedAt,
+      session.closedAt,
+      tenantId,
+    );
+
+    return {
+      ...session,
+      movements,
+      reservationSales: salesBreakdown.reservationSales,
+      posSales: salesBreakdown.posSales,
+    };
   }
 
   /**
    * Get current open session for tenant
    */
-  async getCurrentSession(tenantId: number): Promise<CashierSession | null> {
+  async getCurrentSession(tenantId: number): Promise<any | null> {
     const session = await this.cashierSessionRepository.findOne({
       where: { tenantId, status: CashierSessionStatus.OPEN },
       relations: ['openedByUser'],
     });
 
-    return session;
+    if (!session) {
+      return null;
+    }
+
+    // Load movements for this session
+    const movements = await this.cashierMovementRepository.find({
+      where: { cashierSessionId: session.id, tenantId },
+      relations: ['createdByUser'],
+      order: { movementDate: 'ASC' },
+    });
+
+    // Calculate sales breakdown
+    const salesBreakdown = await this.calculateSalesBreakdown(
+      session.openedAt,
+      session.closedAt,
+      tenantId,
+    );
+
+    return {
+      ...session,
+      movements,
+      reservationSales: salesBreakdown.reservationSales,
+      posSales: salesBreakdown.posSales,
+    };
+  }
+
+  /**
+   * Add a cash movement to an open session (cash in or cash out)
+   */
+  async addMovement(
+    sessionPublicId: string,
+    dto: AddCashierMovementDto,
+    userId: number,
+    tenantId: number,
+  ): Promise<CashierMovement> {
+    // Find the session
+    const session = await this.cashierSessionRepository.findOne({
+      where: { publicId: sessionPublicId, tenantId },
+    });
+
+    if (!session) {
+      throw new NotFoundException(
+        `Cashier session with ID ${sessionPublicId} not found`,
+      );
+    }
+
+    if (session.status === CashierSessionStatus.CLOSED) {
+      throw new BadRequestException(
+        'Cannot add movements to a closed cashier session',
+      );
+    }
+
+    // Create movement
+    const movement = this.cashierMovementRepository.create({
+      tenantId,
+      cashierSessionId: session.id,
+      createdBy: userId,
+      type: dto.type,
+      amount: dto.amount,
+      reason: dto.reason,
+      movementDate: new Date(),
+    });
+
+    return await this.cashierMovementRepository.save(movement);
+  }
+
+  /**
+   * Get all movements for a cashier session
+   */
+  async getMovements(
+    sessionPublicId: string,
+    tenantId: number,
+  ): Promise<CashierMovement[]> {
+    // Find the session
+    const session = await this.cashierSessionRepository.findOne({
+      where: { publicId: sessionPublicId, tenantId },
+    });
+
+    if (!session) {
+      throw new NotFoundException(
+        `Cashier session with ID ${sessionPublicId} not found`,
+      );
+    }
+
+    // Get movements with user info
+    const movements = await this.cashierMovementRepository.find({
+      where: { cashierSessionId: session.id, tenantId },
+      relations: ['createdByUser'],
+      order: { movementDate: 'ASC' },
+    });
+
+    return movements;
   }
 }
