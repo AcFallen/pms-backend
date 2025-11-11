@@ -287,6 +287,23 @@ export class ReservationsService {
     // Execute query - getManyAndCount returns [data, total] in one query
     const [reservations, total] = await query.getManyAndCount();
 
+    // Get reservation IDs that have invoices
+    const reservationIds = reservations.map((r) => r.id);
+    const reservationsWithInvoices = await this.dataSource
+      .createQueryBuilder()
+      .select('DISTINCT reservation.id', 'reservationId')
+      .from('reservations', 'reservation')
+      .innerJoin('folios', 'folio', 'folio.reservationId = reservation.id')
+      .innerJoin('invoices', 'invoice', 'invoice.folioId = folio.id')
+      .where('reservation.id IN (:...reservationIds)', { reservationIds })
+      .andWhere('reservation.tenantId = :tenantId', { tenantId })
+      .getRawMany();
+
+    // Create a Set for quick lookup
+    const invoicedReservationIds = new Set(
+      reservationsWithInvoices.map((r) => r.reservationId),
+    );
+
     // Transform to DTO
     const data: ReservationListItemDto[] = reservations.map((reservation) => ({
       publicId: reservation.publicId,
@@ -307,6 +324,7 @@ export class ReservationsService {
       totalAmount: parseFloat(reservation.totalAmount.toString()),
       status: reservation.status,
       createdAt: reservation.createdAt,
+      hasInvoice: invoicedReservationIds.has(reservation.id),
     }));
 
     // Calculate total pages

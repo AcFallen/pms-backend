@@ -75,4 +75,10 @@ export class ReservationListItemDto {
     example: '2025-11-08T10:30:00Z',
   })
   createdAt: Date;
+
+  @ApiProperty({
+    description: 'Indicates if an invoice has been issued for this reservation',
+    example: true,
+  })
+  hasInvoice: boolean;
 }
