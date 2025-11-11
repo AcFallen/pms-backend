@@ -14,6 +14,7 @@ import { Exclude } from 'class-transformer';
 import { FolioStatus } from '../enums/folio-status.enum';
 import { Reservation } from '../../reservations/entities/reservation.entity';
 import { Payment } from '../../payments/entities/payment.entity';
+import { Invoice } from '../../invoices/entities/invoice.entity';
 
 @Entity('folios')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -42,6 +43,9 @@ export class Folio {
 
   @OneToMany(() => Payment, (payment) => payment.folio)
   payments: Payment[];
+
+  @OneToMany(() => Invoice, (invoice) => invoice.folio)
+  invoices: Invoice[];
 
   @Column({ type: 'varchar', length: 20, nullable: false, unique: true })
   folioNumber: string;

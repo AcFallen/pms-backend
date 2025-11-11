@@ -21,6 +21,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { InvoicesModule } from './invoices/invoices.module';
 import { TenantVoucherSeriesModule } from './teanant-vourcher-series/tenant-voucher-serie.module';
 import { ScheduledTasksModule } from './scheduled-tasks/scheduled-tasks.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { ScheduledTasksModule } from './scheduled-tasks/scheduled-tasks.module';
     PaymentsModule,
     InvoicesModule,
     ScheduledTasksModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

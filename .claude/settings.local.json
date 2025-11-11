@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(nest g res:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(nest g:*)"
     ],
     "deny": [],
     "ask": []
