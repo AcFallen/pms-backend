@@ -49,7 +49,6 @@ export class InvoicesService {
     private readonly dataSource: DataSource,
   ) {}
 
-
   async findAll(
     tenantId: number,
     filters: FilterInvoicesDto,
@@ -82,9 +81,12 @@ export class InvoicesService {
     }
 
     if (customerDocumentNumber) {
-      query.andWhere('invoice.customerDocumentNumber ILIKE :customerDocumentNumber', {
-        customerDocumentNumber: `%${customerDocumentNumber}%`,
-      });
+      query.andWhere(
+        'invoice.customerDocumentNumber ILIKE :customerDocumentNumber',
+        {
+          customerDocumentNumber: `%${customerDocumentNumber}%`,
+        },
+      );
     }
 
     if (createdAtStart && createdAtEnd) {
@@ -136,8 +138,6 @@ export class InvoicesService {
     };
   }
 
-
-
   async findByPublicId(publicId: string): Promise<Invoice> {
     const invoice = await this.invoiceRepository.findOne({
       where: { publicId },
@@ -152,8 +152,6 @@ export class InvoicesService {
 
     return invoice;
   }
-
-
 
   /**
    * Generate invoice from folio and send to SUNAT via Nubefact
@@ -184,10 +182,7 @@ export class InvoicesService {
         : null;
 
       // Reset counter if it's a new month or never been reset
-      if (
-        !lastResetDate ||
-        lastResetDate < currentMonthStart
-      ) {
+      if (!lastResetDate || lastResetDate < currentMonthStart) {
         tenant.currentMonthInvoiceCount = 0;
         tenant.lastInvoiceCountReset = currentMonthStart;
         await queryRunner.manager.save(Tenant, tenant);
@@ -361,11 +356,23 @@ export class InvoicesService {
       savedInvoice.sunatCdr = nubefactResponse.enlace_del_cdr;
       savedInvoice.sentAt = new Date();
 
-      if (nubefactResponse.aceptada_por_sunat) {
+      // Determine invoice status based on SUNAT response
+      if (nubefactResponse.aceptada_por_sunat === true) {
+        // Estado 1: ACEPTADA - SUNAT aceptó el comprobante
         savedInvoice.status = InvoiceStatus.ACCEPTED;
         savedInvoice.acceptedAt = new Date();
-      } else {
-        savedInvoice.status = InvoiceStatus.REJECTED;
+      } else if (nubefactResponse.aceptada_por_sunat === false) {
+        // aceptada_por_sunat = false, necesitamos revisar sunat_description
+        const sunatDescription = nubefactResponse.sunat_description || '';
+        const sunatNote = nubefactResponse.sunat_note || '';
+
+        if (sunatDescription.trim() === '' && sunatNote.trim() === '') {
+          // Estado 2: PENDIENTE - Aún no procesada por SUNAT (esperando Resumen Diario)
+          savedInvoice.status = InvoiceStatus.PENDING;
+        } else {
+          // Estado 3: RECHAZADA - SUNAT la rechazó con un mensaje de error
+          savedInvoice.status = InvoiceStatus.REJECTED;
+        }
       }
 
       await queryRunner.manager.save(Invoice, savedInvoice);
@@ -474,5 +481,85 @@ export class InvoicesService {
         anticipo_regularizacion: false,
       };
     });
+  }
+
+  /**
+   * Check invoice status in SUNAT via Nubefact
+   * @param publicId - Invoice public ID
+   * @param tenantId - Tenant ID
+   * @returns Invoice status response from Nubefact with updated invoice status
+   */
+  async checkInvoiceStatus(publicId: string, tenantId: number): Promise<any> {
+    // 1. Find invoice by publicId
+    const invoice = await this.invoiceRepository.findOne({
+      where: { publicId, tenantId },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(
+        `Invoice with publicId ${publicId} not found`,
+      );
+    }
+
+    // 2. Prepare Nubefact request to check status
+    const checkStatusRequest = {
+      operacion: 'consultar_comprobante',
+      tipo_de_comprobante: this.mapToSunatDocumentType(invoice.invoiceType),
+      serie: invoice.series,
+      numero: parseInt(invoice.number),
+    };
+
+    // 3. Call Nubefact API to check status
+    const nubefactResponse =
+      await this.nubefactService.checkInvoiceStatus(checkStatusRequest);
+
+    // 4. Update invoice status based on SUNAT response
+    if (nubefactResponse.aceptada_por_sunat === true) {
+      // Estado 1: ACEPTADA - SUNAT aceptó el comprobante
+      invoice.status = InvoiceStatus.ACCEPTED;
+      invoice.acceptedAt = new Date();
+
+      // Update links if they're provided and different
+      if (
+        nubefactResponse.enlace_del_pdf &&
+        nubefactResponse.enlace_del_pdf !== invoice.pdfUrl
+      ) {
+        invoice.pdfUrl = nubefactResponse.enlace_del_pdf;
+      }
+      if (
+        nubefactResponse.enlace_del_xml &&
+        nubefactResponse.enlace_del_xml !== invoice.xmlContent
+      ) {
+        invoice.xmlContent = nubefactResponse.enlace_del_xml;
+      }
+      if (
+        nubefactResponse.enlace_del_cdr &&
+        nubefactResponse.enlace_del_cdr !== invoice.sunatCdr
+      ) {
+        invoice.sunatCdr = nubefactResponse.enlace_del_cdr;
+      }
+
+      await this.invoiceRepository.save(invoice);
+    } else if (nubefactResponse.aceptada_por_sunat === false) {
+      // aceptada_por_sunat = false, necesitamos revisar sunat_description
+      const sunatDescription = nubefactResponse.sunat_description || '';
+      const sunatNote = nubefactResponse.sunat_note || '';
+
+      if (sunatDescription.trim() === '' && sunatNote.trim() === '') {
+        // Estado 2: PENDIENTE - Aún no procesada por SUNAT (esperando Resumen Diario)
+        invoice.status = InvoiceStatus.PENDING;
+      } else {
+        // Estado 3: RECHAZADA - SUNAT la rechazó con un mensaje de error
+        invoice.status = InvoiceStatus.REJECTED;
+      }
+
+      await this.invoiceRepository.save(invoice);
+    }
+
+    // 5. Return the Nubefact response with updated invoice status
+    return {
+      ...nubefactResponse,
+      invoiceStatus: invoice.status,
+    };
   }
 }

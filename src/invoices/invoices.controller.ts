@@ -88,4 +88,35 @@ export class InvoicesController {
   ) {
     return this.invoicesService.findAll(user.tenantId, filters);
   }
+
+  @Get(':publicId/check-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Check invoice status in SUNAT',
+    description:
+      'Queries Nubefact to check the current status of an invoice in SUNAT. If the invoice is accepted by SUNAT (aceptada_por_sunat = true), the invoice status will be automatically updated to ACCEPTED. If rejected, it will be updated to REJECTED.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    type: String,
+    description: 'Invoice public ID (UUID)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Invoice status retrieved successfully from SUNAT',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Invoice not found',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Error communicating with Nubefact',
+  })
+  checkInvoiceStatus(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.invoicesService.checkInvoiceStatus(publicId, user.tenantId);
+  }
 }

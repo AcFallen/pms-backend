@@ -85,4 +85,64 @@ export class NubefactService {
       );
     }
   }
+
+  /**
+   * Check invoice status in Nubefact/SUNAT
+   */
+  async checkInvoiceStatus(payload: {
+    operacion: string;
+    tipo_de_comprobante: number;
+    serie: string;
+    numero: number;
+  }): Promise<any> {
+    this.logger.log(
+      `Checking invoice status in Nubefact: ${payload.serie}-${String(payload.numero).padStart(8, '0')}`,
+    );
+
+    try {
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Token ${this.apiToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorData = data as NubefactErrorResponse;
+        this.logger.error('Nubefact API error:', errorData);
+
+        let errorMessage = 'Error al consultar comprobante en Nubefact';
+        if (errorData.errors) {
+          errorMessage = errorData.errors;
+        }
+        if (errorData.errors_detail) {
+          const details = Object.entries(errorData.errors_detail)
+            .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+            .join('; ');
+          errorMessage += `. Detalles: ${details}`;
+        }
+
+        throw new BadRequestException(errorMessage);
+      }
+
+      this.logger.log(
+        `Invoice status retrieved: ${data.serie}-${data.numero} - Accepted by SUNAT: ${data.aceptada_por_sunat}`,
+      );
+
+      return data;
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      this.logger.error('Error communicating with Nubefact:', error);
+      throw new BadRequestException(
+        'Error de comunicación con Nubefact. Intente nuevamente.',
+      );
+    }
+  }
 }
