@@ -117,13 +117,20 @@ export class ReservationsService {
         roomId = room.id;
       }
 
-      // Calculate nights if not provided
+      // Determine if it's hourly or nightly reservation
+      const isHourlyReservation = !!createReservationDto.hours;
+
+      // Calculate nights if not provided (only for non-hourly reservations)
       let nights = createReservationDto.nights;
-      if (!nights) {
+      if (!nights && !isHourlyReservation) {
         const checkIn = new Date(createReservationDto.checkInDate);
         const checkOut = new Date(createReservationDto.checkOutDate);
         const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
         nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // If same day and not hourly, set to 1 night minimum
+        if (nights === 0) {
+          nights = 1;
+        }
       }
 
       // Create reservation
@@ -180,17 +187,31 @@ export class ReservationsService {
       const savedFolio = await queryRunner.manager.save(folio);
 
       // Create folio charge for room accommodation
-      const roomDescription = room
-        ? `${nights} noche(s) - Habitación ${room.roomNumber} (${roomType.name})`
-        : `${nights} noche(s) - ${roomType.name}`;
+      let roomDescription: string;
+      let quantity: number;
+      let unitPriceConIGV: number;
 
-      const totalAmountConIGV = parseFloat(
-        createReservationDto.totalAmount.toString(),
-      );
-      // El unitPrice en la BD debe incluir IGV (así es como se manejan los precios)
-      const unitPriceConIGV = parseFloat(
-        (totalAmountConIGV / nights).toFixed(2),
-      );
+      if (isHourlyReservation) {
+        // Hourly reservation
+        const hours = createReservationDto.hours!; // Non-null assertion since we checked isHourlyReservation
+        roomDescription = room
+          ? `${hours} hora(s) - Habitación ${room.roomNumber} (${roomType.name})`
+          : `${hours} hora(s) - ${roomType.name}`;
+        quantity = hours;
+        unitPriceConIGV = parseFloat(
+          (folioTotalConIGV / hours).toFixed(2),
+        );
+      } else {
+        // Nightly reservation
+        const nightsValue = nights!; // Non-null assertion since we set it above
+        roomDescription = room
+          ? `${nightsValue} noche(s) - Habitación ${room.roomNumber} (${roomType.name})`
+          : `${nightsValue} noche(s) - ${roomType.name}`;
+        quantity = nightsValue;
+        unitPriceConIGV = parseFloat(
+          (folioTotalConIGV / nightsValue).toFixed(2),
+        );
+      }
 
       const folioCharge = queryRunner.manager.create(FolioCharge, {
         tenantId,
@@ -198,9 +219,9 @@ export class ReservationsService {
         chargeType: ChargeType.ROOM,
         productId: null,
         description: roomDescription,
-        quantity: nights,
+        quantity,
         unitPrice: unitPriceConIGV, // Precio CON IGV incluido
-        total: totalAmountConIGV, // Total CON IGV incluido
+        total: folioTotalConIGV, // Total CON IGV incluido
         chargeDate: new Date(),
       });
 
