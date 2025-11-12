@@ -33,9 +33,16 @@ export class DashboardService {
     private readonly roomTypeRepository: Repository<RoomType>,
   ) {}
 
-  async getMetrics(tenantId: number, filters: DashboardFiltersDto): Promise<DashboardMetricsDto> {
+  async getMetrics(
+    tenantId: number,
+    filters: DashboardFiltersDto,
+  ): Promise<DashboardMetricsDto> {
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
@@ -54,7 +61,14 @@ export class DashboardService {
       // Only start date provided, use it as start and end of that month
       const startDate = new Date(filters.startDate);
       monthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59);
+      monthEnd = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+      );
     } else if (filters.endDate) {
       // Only end date provided, use first day of that month to end date
       const endDate = new Date(filters.endDate);
@@ -173,15 +187,14 @@ export class DashboardService {
 
     const totalIncome = parseFloat(totalIncomeResult?.total || '0');
 
-    // Ingresos declarados a SUNAT: pagos del mes que tienen invoice ACEPTADA
-    // (sin importar cuándo se generó la invoice, solo que exista y esté aceptada)
-    const declaredResult = await this.paymentRepository
-      .createQueryBuilder('payment')
-      .select('SUM(payment.amount)', 'total')
-      .innerJoin('payment.folio', 'folio')
-      .innerJoin('folio.invoices', 'invoice')
-      .where('payment.tenantId = :tenantId', { tenantId })
-      .andWhere('payment.paymentDate BETWEEN :monthStart AND :monthEnd', {
+    // Ingresos declarados a SUNAT: suma del total de las facturas ACEPTADAS del mes
+    // IMPORTANTE: Ahora usamos invoice.total que refleja solo los cargos incluidos en la factura
+    // (con includedInInvoice = true), no el monto total del pago o folio
+    const declaredResult = await this.invoiceRepository
+      .createQueryBuilder('invoice')
+      .select('SUM(invoice.total)', 'total')
+      .where('invoice.tenantId = :tenantId', { tenantId })
+      .andWhere('invoice.createdAt BETWEEN :monthStart AND :monthEnd', {
         monthStart,
         monthEnd,
       })
@@ -236,10 +249,11 @@ export class DashboardService {
     monthStart: Date,
     monthEnd: Date,
   ): Promise<CashInvoicesDto> {
-    // Obtener folios con facturas aceptadas en el mes
+    // Obtener facturas aceptadas del mes que fueron pagadas en efectivo
+    // IMPORTANTE: Usamos invoice.total que refleja solo los cargos incluidos en la factura
     const result = await this.invoiceRepository
       .createQueryBuilder('invoice')
-      .select('SUM(payment.amount)', 'totalCashInvoiced')
+      .select('SUM(invoice.total)', 'totalCashInvoiced')
       .addSelect('COUNT(DISTINCT invoice.id)', 'count')
       .leftJoin('invoice.folio', 'folio')
       .leftJoin('folio.payments', 'payment')
