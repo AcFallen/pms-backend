@@ -416,6 +416,7 @@ export class ReservationsService {
       .addSelect(['roomType.publicId', 'roomType.name', 'roomType.description'])
       .leftJoin('reservation.folios', 'folio')
       .addSelect([
+        'folio.id', // Internal ID needed to fetch folio charges
         'folio.publicId',
         'folio.folioNumber',
         'folio.status',

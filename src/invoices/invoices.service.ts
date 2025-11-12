@@ -306,17 +306,19 @@ export class InvoicesService {
         );
       }
 
-      // 7. Calculate totals (IGV 18%)
-      // El folio.total incluye IGV (es el monto real cobrado)
-      // El folio.subtotal es sin IGV, folio.tax es el IGV
-      // Usar folio.total como fuente de verdad para evitar errores de redondeo
-      const totalConIGV = parseFloat(folio.total.toString());
+      // 7. Calculate totals (IGV 18%) based ONLY on charges to be invoiced
+      // IMPORTANTE: Calcular totales solo de los folioCharges que se van a facturar
+      // para evitar descuadres con Nubefact
+      const totalConIGV = folioCharges.reduce(
+        (sum, charge) => sum + parseFloat(charge.total.toString()),
+        0,
+      );
       const subtotalSinIGV = totalConIGV / 1.18;
       const igv = totalConIGV - subtotalSinIGV;
 
       const subtotal = parseFloat(subtotalSinIGV.toFixed(2));
       const igvRounded = parseFloat(igv.toFixed(2));
-      const total = totalConIGV; // Usar el total original sin redondeo adicional
+      const total = parseFloat(totalConIGV.toFixed(2));
 
       // 8. Create invoice record (PENDING status)
       const invoice = queryRunner.manager.create(Invoice, {
