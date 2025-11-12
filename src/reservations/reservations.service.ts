@@ -198,9 +198,7 @@ export class ReservationsService {
           ? `${hours} hora(s) - Habitación ${room.roomNumber} (${roomType.name})`
           : `${hours} hora(s) - ${roomType.name}`;
         quantity = hours;
-        unitPriceConIGV = parseFloat(
-          (folioTotalConIGV / hours).toFixed(2),
-        );
+        unitPriceConIGV = parseFloat((folioTotalConIGV / hours).toFixed(2));
       } else {
         // Nightly reservation
         const nightsValue = nights!; // Non-null assertion since we set it above
@@ -351,6 +349,8 @@ export class ReservationsService {
       status: reservation.status,
       createdAt: reservation.createdAt,
       hasInvoice: invoicedReservationIds.has(reservation.id),
+      checkInTime: reservation.checkInTime,
+      checkOutTime: reservation.checkOutTime,
     }));
 
     // Calculate total pages
