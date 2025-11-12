@@ -16,6 +16,7 @@ import {
   IncomeSunatComparisonDto,
   CashInvoicesDto,
 } from './dto/dashboard-metrics.dto';
+import { DashboardFiltersDto } from './dto/dashboard-filters.dto';
 
 @Injectable()
 export class DashboardService {
@@ -32,14 +33,39 @@ export class DashboardService {
     private readonly roomTypeRepository: Repository<RoomType>,
   ) {}
 
-  async getMetrics(tenantId: number): Promise<DashboardMetricsDto> {
+  async getMetrics(tenantId: number, filters: DashboardFiltersDto): Promise<DashboardMetricsDto> {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // Determine date range: use filters if provided, otherwise use current month
+    let monthStart: Date;
+    let monthEnd: Date;
+
+    if (filters.startDate && filters.endDate) {
+      // Use provided date range
+      monthStart = new Date(filters.startDate);
+      monthStart.setHours(0, 0, 0, 0);
+
+      monthEnd = new Date(filters.endDate);
+      monthEnd.setHours(23, 59, 59, 999);
+    } else if (filters.startDate) {
+      // Only start date provided, use it as start and end of that month
+      const startDate = new Date(filters.startDate);
+      monthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      monthEnd = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59);
+    } else if (filters.endDate) {
+      // Only end date provided, use first day of that month to end date
+      const endDate = new Date(filters.endDate);
+      monthStart = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+      monthEnd = new Date(filters.endDate);
+      monthEnd.setHours(23, 59, 59, 999);
+    } else {
+      // No filters, use current month
+      monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
 
     // 1. Número de check-ins hoy (reservas que hicieron check-in hoy, independientemente del estado actual)
     const checkInsToday = await this.reservationRepository.count({
@@ -134,7 +160,7 @@ export class DashboardService {
     monthStart: Date,
     monthEnd: Date,
   ): Promise<IncomeSunatComparisonDto> {
-    // Total de ingresos del mes (pagos)
+    // Total de ingresos del mes (pagos realizados en el mes)
     const totalIncomeResult = await this.paymentRepository
       .createQueryBuilder('payment')
       .select('SUM(payment.amount)', 'total')
@@ -147,7 +173,8 @@ export class DashboardService {
 
     const totalIncome = parseFloat(totalIncomeResult?.total || '0');
 
-    // Ingresos declarados a SUNAT: pagos que tienen invoice asociada (a través del folio)
+    // Ingresos declarados a SUNAT: pagos del mes que tienen invoice ACEPTADA
+    // (sin importar cuándo se generó la invoice, solo que exista y esté aceptada)
     const declaredResult = await this.paymentRepository
       .createQueryBuilder('payment')
       .select('SUM(payment.amount)', 'total')
@@ -158,7 +185,6 @@ export class DashboardService {
         monthStart,
         monthEnd,
       })
-      .andWhere('invoice.id IS NOT NULL')
       .andWhere('invoice.status = :status', { status: InvoiceStatus.ACCEPTED })
       .getRawOne();
 
