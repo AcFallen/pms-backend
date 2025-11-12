@@ -310,15 +310,20 @@ export class ReservationsService {
 
     // Get reservation IDs that have invoices
     const reservationIds = reservations.map((r) => r.id);
-    const reservationsWithInvoices = await this.dataSource
-      .createQueryBuilder()
-      .select('DISTINCT reservation.id', 'reservationId')
-      .from('reservations', 'reservation')
-      .innerJoin('folios', 'folio', 'folio.reservationId = reservation.id')
-      .innerJoin('invoices', 'invoice', 'invoice.folioId = folio.id')
-      .where('reservation.id IN (:...reservationIds)', { reservationIds })
-      .andWhere('reservation.tenantId = :tenantId', { tenantId })
-      .getRawMany();
+    let reservationsWithInvoices: any[] = [];
+
+    // Only query if there are reservations to check
+    if (reservationIds.length > 0) {
+      reservationsWithInvoices = await this.dataSource
+        .createQueryBuilder()
+        .select('DISTINCT reservation.id', 'reservationId')
+        .from('reservations', 'reservation')
+        .innerJoin('folios', 'folio', 'folio.reservationId = reservation.id')
+        .innerJoin('invoices', 'invoice', 'invoice.folioId = folio.id')
+        .where('reservation.id IN (:...reservationIds)', { reservationIds })
+        .andWhere('reservation.tenantId = :tenantId', { tenantId })
+        .getRawMany();
+    }
 
     // Create a Set for quick lookup
     const invoicedReservationIds = new Set(
