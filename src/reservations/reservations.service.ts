@@ -782,7 +782,7 @@ export class ReservationsService {
     }
   }
 
-  /**
+ /**
    * Genera un reporte Excel de reservas por rango de fechas
    * Agrupa las reservas por día y calcula totales diarios
    */
@@ -1044,10 +1044,11 @@ export class ReservationsService {
         const monto = parseFloat(reservation.totalAmount.toString());
         dayTotal += monto;
 
-        // Buscar factura (invoice de tipo FACTURA)
+        // Buscar factura (invoice de tipo FACTURA) o boleta
         let ruc = '';
         let empresa = '';
         let boleta = '';
+        let invoiceType: InvoiceType | null = null;
 
         for (const folio of reservation.folios) {
           const facturaInvoice = folio.invoices?.find(
@@ -1057,6 +1058,7 @@ export class ReservationsService {
             ruc = facturaInvoice.customerDocumentNumber;
             empresa = facturaInvoice.customerName;
             boleta = `${facturaInvoice.series}-${facturaInvoice.number}`;
+            invoiceType = InvoiceType.FACTURA;
             break;
           }
 
@@ -1067,7 +1069,50 @@ export class ReservationsService {
             );
             if (boletaInvoice) {
               boleta = `${boletaInvoice.series}-${boletaInvoice.number}`;
+              invoiceType = InvoiceType.BOLETA;
             }
+          }
+        }
+
+        // Determinar el color de fondo para la celda de boleta
+        let boletaCellColor: string | null = null;
+
+        if (boleta && invoiceType) {
+          // Si tiene múltiples métodos de pago (efectivo + otros) -> café
+          if (hasCash && hasOtherMethods) {
+            boletaCellColor = 'FFC19A6B'; // Color café/marrón
+          }
+          // Factura con pago NO efectivo (tarjeta, transferencia, yape, plin) -> azul
+          else if (
+            invoiceType === InvoiceType.FACTURA &&
+            !hasCash &&
+            hasOtherMethods
+          ) {
+            boletaCellColor = 'FF4169E1'; // Color azul (Royal Blue)
+          }
+          // Factura con pago efectivo -> plomo/gris
+          else if (
+            invoiceType === InvoiceType.FACTURA &&
+            hasCash &&
+            !hasOtherMethods
+          ) {
+            boletaCellColor = 'FFA9A9A9'; // Color plomo/gris (Dark Gray)
+          }
+          // Boleta con pago NO efectivo (tarjeta, transferencia, yape, plin) -> celeste
+          else if (
+            invoiceType === InvoiceType.BOLETA &&
+            !hasCash &&
+            hasOtherMethods
+          ) {
+            boletaCellColor = 'FF87CEEB'; // Color celeste (Sky Blue)
+          }
+          // Boleta con pago efectivo -> verde
+          else if (
+            invoiceType === InvoiceType.BOLETA &&
+            hasCash &&
+            !hasOtherMethods
+          ) {
+            boletaCellColor = 'FF90EE90'; // Color verde claro
           }
         }
 
@@ -1143,6 +1188,15 @@ export class ReservationsService {
               fgColor: { argb: nombresCellColor },
             };
           }
+
+          // Aplicar color de fondo a la celda de boleta (índice 10) basado en tipo de invoice y métodos de pago
+          if (idx === 10 && boletaCellColor) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: boletaCellColor },
+            };
+          }
         });
 
         dataRow.height = 20;
@@ -1203,7 +1257,7 @@ export class ReservationsService {
     // Generar el archivo Excel como buffer
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ExcelJS.Buffer;
-  }
+  } 
 
   /**
    * Generates a unique folio number in format: FOL-YYYY-XXXXX
