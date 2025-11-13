@@ -896,10 +896,10 @@ export class ReservationsService {
 
     for (const dayKey of sortedDays) {
       const dayReservations = reservationsByDay.get(dayKey)!;
-      
+
       // Parsear el dayKey (formato 'yyyy-MM-dd') correctamente para la zona horaria de Perú
       const [year, month, day] = dayKey.split('-').map(Number);
-      
+
       // Formato: "01 de enero de 2025"
       const dayHeader = `${day.toString().padStart(2, '0')} de ${mesesES[month - 1]} de ${year}`;
 
