@@ -19,6 +19,8 @@ import {
   DniApiResponse,
   RucApiResponse,
 } from './interfaces/external-api-response.interface';
+import * as ExcelJS from 'exceljs';
+import { GuestIncident } from '../guest-incidents/entities/guest-incident.entity';
 
 @Injectable()
 export class GuestsService {
@@ -29,6 +31,8 @@ export class GuestsService {
   constructor(
     @InjectRepository(Guest)
     private readonly guestRepository: Repository<Guest>,
+    @InjectRepository(GuestIncident)
+    private readonly guestIncidentRepository: Repository<GuestIncident>,
   ) {}
 
   async create(
@@ -414,5 +418,142 @@ export class GuestsService {
       source: 'not_found',
       message: 'No se encontró información para el documento proporcionado',
     };
+  }
+
+  /**
+   * Genera un reporte Excel de todos los huéspedes del tenant
+   * Los huéspedes con incidentes se marcan en amarillo
+   * Los huéspedes con incidentes que bloquean reservas se marcan en rojo
+   */
+  async generateGuestsExcelReport(tenantId: number): Promise<ExcelJS.Buffer> {
+    // Obtener todos los huéspedes del tenant
+    const guests = await this.guestRepository.find({
+      where: { tenantId },
+      order: { lastName: 'ASC', firstName: 'ASC' },
+    });
+
+    // Obtener todas las incidencias para identificar huéspedes con problemas
+    const incidents = await this.guestIncidentRepository.find({
+      where: { tenantId },
+      select: ['guestId', 'blockFutureBookings'],
+    });
+
+    // Crear mapa de huéspedes con incidentes
+    const guestIncidentsMap = new Map<
+      number,
+      { hasIncident: boolean; hasBlockingIncident: boolean }
+    >();
+
+    for (const incident of incidents) {
+      const existing = guestIncidentsMap.get(incident.guestId) || {
+        hasIncident: false,
+        hasBlockingIncident: false,
+      };
+      existing.hasIncident = true;
+      if (incident.blockFutureBookings) {
+        existing.hasBlockingIncident = true;
+      }
+      guestIncidentsMap.set(incident.guestId, existing);
+    }
+
+    // Crear workbook y worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Huéspedes');
+
+    // Configurar columnas
+    worksheet.columns = [
+      { header: 'Tipo de Documento', key: 'documentType', width: 18 },
+      { header: 'Número de Documento', key: 'documentNumber', width: 20 },
+      { header: 'Nombres Completos', key: 'fullName', width: 35 },
+      { header: 'País', key: 'country', width: 20 },
+      { header: 'Ciudad', key: 'city', width: 20 },
+      { header: 'Fecha de Nacimiento', key: 'birthDate', width: 20 },
+      { header: 'Teléfono', key: 'phone', width: 18 },
+    ];
+
+    // Estilizar encabezado
+    const headerRow = worksheet.getRow(1);
+    headerRow.height = 25;
+    
+    // Aplicar estilos solo a las columnas con datos (A-G)
+    for (let col = 1; col <= 7; col++) {
+      const cell = headerRow.getCell(col);
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF509A95' },
+      };
+      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } },
+      };
+    }
+
+    // Agregar datos
+    guests.forEach((guest) => {
+      const fullName =
+        `${guest.firstName || ''} ${guest.lastName || ''}`.trim();
+      const birthDateFormatted = guest.birthDate
+        ? new Date(guest.birthDate).toLocaleDateString('es-PE')
+        : '';
+
+      const row = worksheet.addRow({
+        documentType: guest.documentType,
+        documentNumber: guest.documentNumber,
+        fullName,
+        country: guest.country || '',
+        city: guest.city || '',
+        birthDate: birthDateFormatted,
+        phone: guest.phone || '',
+      });
+
+      // Aplicar estilos según incidencias (solo a las columnas con datos: A-G)
+      const incidentInfo = guestIncidentsMap.get(guest.id);
+
+      if (incidentInfo) {
+        for (let col = 1; col <= 7; col++) {
+          const cell = row.getCell(col);
+          
+          if (incidentInfo.hasBlockingIncident) {
+            // Rojo para huéspedes con bloqueo de reservas
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFF0000' },
+            };
+            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+          } else if (incidentInfo.hasIncident) {
+            // Amarillo para huéspedes con al menos una incidencia
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFFFF00' },
+            };
+          }
+        }
+      }
+
+      // Alineación y bordes solo para celdas con datos (A-G)
+      for (let col = 1; col <= 7; col++) {
+        const cell = row.getCell(col);
+        cell.alignment = { vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } },
+        };
+      }
+      
+      row.height = 20;
+    });
+
+    // Generar el archivo Excel como buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as ExcelJS.Buffer;
   }
 }

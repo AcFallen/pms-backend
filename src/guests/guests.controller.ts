@@ -9,6 +9,8 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Res,
+  Header,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +21,7 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GuestsService } from './guests.service';
 import { CreateGuestDto } from './dto/create-guest.dto';
 import { UpdateGuestDto } from './dto/update-guest.dto';
@@ -181,6 +184,44 @@ export class GuestsController {
     @CurrentUser() user: CurrentUserData,
   ): Promise<PaginatedGuests> {
     return this.guestsService.findAll(user.tenantId, filterDto);
+  }
+
+  @Get('reports/excel')
+  @HttpCode(HttpStatus.OK)
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  @ApiOperation({
+    summary: 'Generate Excel report of all guests',
+    description:
+      'Generates an Excel report with all guests from the tenant. Guests with incidents are highlighted in yellow, and guests with blocking incidents are highlighted in red.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async downloadGuestsReport(
+    @CurrentUser() user: CurrentUserData,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer = await this.guestsService.generateGuestsExcelReport(
+      user.tenantId,
+    );
+
+    const filename = `huespedes_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    res.send(Buffer.from(buffer));
   }
 
   @Get(':publicId')
