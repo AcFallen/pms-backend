@@ -24,6 +24,7 @@ import { ScheduledTasksModule } from './scheduled-tasks/scheduled-tasks.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { CashierModule } from './cashier/cashier.module';
 import { PosModule } from './pos/pos.module';
+import { GuestIncidentsModule } from './guest-incidents/guest-incidents.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { PosModule } from './pos/pos.module';
     DashboardModule,
     CashierModule,
     PosModule,
+    GuestIncidentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
