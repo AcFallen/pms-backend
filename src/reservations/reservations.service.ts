@@ -1004,6 +1004,7 @@ export class ReservationsService {
 
         // Métodos de pago (de todos los folios)
         const paymentMethods = new Set<string>();
+        const rawPaymentMethods = new Set<string>(); // Para detectar los métodos originales
         const paymentMethodTranslations: Record<string, string> = {
           cash: 'Efectivo',
           card: 'Tarjeta',
@@ -1014,6 +1015,7 @@ export class ReservationsService {
 
         for (const folio of reservation.folios) {
           for (const payment of folio.payments || []) {
+            rawPaymentMethods.add(payment.paymentMethod); // Guardar método original
             const translatedMethod =
               paymentMethodTranslations[payment.paymentMethod] ||
               payment.paymentMethod;
@@ -1021,6 +1023,22 @@ export class ReservationsService {
           }
         }
         const metodoPago = Array.from(paymentMethods).join(' | ') || '';
+
+        // Determinar el color de fondo para la celda de nombres basado en métodos de pago
+        let nombresCellColor: string | null = null;
+        const hasCash = rawPaymentMethods.has('cash');
+        const hasOtherMethods = Array.from(rawPaymentMethods).some(
+          (method) => method !== 'cash',
+        );
+
+        if (hasCash && hasOtherMethods) {
+          // Ambos: efectivo y otros métodos -> color café/marrón
+          nombresCellColor = 'FFC19A6B'; // Color café/marrón
+        } else if (!hasCash && hasOtherMethods) {
+          // Solo otros métodos (no efectivo) -> color verde
+          nombresCellColor = 'FF90EE90'; // Color verde claro
+        }
+        // Si es solo efectivo o no hay métodos de pago, nombresCellColor permanece null (sin color)
 
         // Monto total de la reserva
         const monto = parseFloat(reservation.totalAmount.toString());
@@ -1115,6 +1133,15 @@ export class ReservationsService {
           // Formato de número para monto
           if (idx === 7) {
             cell.numFmt = '#,##0.00';
+          }
+
+          // Aplicar color de fondo a la celda de nombres (índice 4) basado en métodos de pago
+          if (idx === 4 && nombresCellColor) {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: nombresCellColor },
+            };
           }
         });
 
