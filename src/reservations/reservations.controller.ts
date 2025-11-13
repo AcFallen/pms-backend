@@ -74,56 +74,6 @@ export class ReservationsController {
     description:
       'Retrieves all reservations for the authenticated tenant with optional filters and pagination. Supports filtering by check-in date (exact or range), status, guest name, and document number. Returns paginated results with optimized data structure.',
   })
-  @ApiQuery({
-    name: 'page',
-    required: false,
-    type: Number,
-    description: 'Page number (default: 1)',
-    example: 1,
-  })
-  @ApiQuery({
-    name: 'limit',
-    required: false,
-    type: Number,
-    description: 'Items per page (default: 10)',
-    example: 10,
-  })
-  @ApiQuery({
-    name: 'checkInDate',
-    required: false,
-    type: String,
-    description: 'Exact check-in date filter (YYYY-MM-DD)',
-    example: '2025-11-10',
-  })
-  @ApiQuery({
-    name: 'checkInStartDate',
-    required: false,
-    type: String,
-    description: 'Check-in date range start (YYYY-MM-DD)',
-    example: '2025-11-01',
-  })
-  @ApiQuery({
-    name: 'checkInEndDate',
-    required: false,
-    type: String,
-    description: 'Check-in date range end (YYYY-MM-DD)',
-    example: '2025-11-30',
-  })
-  @ApiQuery({
-    name: 'status',
-    required: false,
-    enum: ReservationStatus,
-    description: 'Filter by reservation status',
-    example: ReservationStatus.CHECKED_IN,
-  })
-  @ApiQuery({
-    name: 'search',
-    required: false,
-    type: String,
-    description:
-      'Search by guest information (first name, last name, full name, or document number)',
-    example: 'John',
-  })
   @ApiResponse({
     status: 200,
     description: 'Paginated list of reservations retrieved successfully',
@@ -142,27 +92,7 @@ export class ReservationsController {
     description:
       'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled and checked-out reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
   })
-  @ApiQuery({
-    name: 'startDate',
-    required: true,
-    type: String,
-    description: 'Start date for calendar range (ISO 8601 format: YYYY-MM-DD)',
-    example: '2025-11-08',
-  })
-  @ApiQuery({
-    name: 'endDate',
-    required: true,
-    type: String,
-    description: 'End date for calendar range (ISO 8601 format: YYYY-MM-DD)',
-    example: '2025-11-22',
-  })
-  @ApiQuery({
-    name: 'roomPublicId',
-    required: false,
-    type: String,
-    description: 'Optional: Filter by specific room UUID',
-    example: '550e8400-e29b-41d4-a716-446655440000',
-  })
+ 
   @ApiResponse({
     status: 200,
     description: 'List of simplified reservations for calendar grid',
