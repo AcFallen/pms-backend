@@ -805,6 +805,7 @@ export class ReservationsService {
         'folios',
         'folios.payments',
         'folios.invoices',
+        'folios.folioCharges',
       ],
       order: {
         checkInDate: 'ASC',
@@ -855,6 +856,7 @@ export class ReservationsService {
       { key: 'empresa', width: 30 },
       { key: 'boleta', width: 18 },
       { key: 'obs', width: 20 },
+      { key: 'pos', width: 30 },
     ];
 
     // Configurar encabezado de columnas (se aplicará después de cada encabezado de día)
@@ -871,6 +873,7 @@ export class ReservationsService {
       'EMPRESA',
       'Boleta',
       'OBS',
+      'POS',
     ];
 
     let currentRow = 1;
@@ -921,11 +924,11 @@ export class ReservationsService {
         vertical: 'middle',
       };
 
-      // Merge cells para el encabezado del día (A-L)
-      worksheet.mergeCells(currentRow, 1, currentRow, 12);
+      // Merge cells para el encabezado del día (A-M)
+      worksheet.mergeCells(currentRow, 1, currentRow, 13);
 
       // Aplicar bordes al encabezado del día
-      for (let col = 1; col <= 12; col++) {
+      for (let col = 1; col <= 13; col++) {
         dayHeaderRow.getCell(col).border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
           left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -1053,6 +1056,31 @@ export class ReservationsService {
         // OBS vacío por ahora
         const obs = '';
 
+        // POS: Agrupar y contar descripciones de folio charges que NO sean de tipo ROOM
+        const posItemsMap = new Map<string, number>();
+        for (const folio of reservation.folios) {
+          for (const charge of folio.folioCharges || []) {
+            if (charge.chargeType !== ChargeType.ROOM) {
+              const description = charge.description;
+              posItemsMap.set(
+                description,
+                (posItemsMap.get(description) || 0) + 1,
+              );
+            }
+          }
+        }
+
+        // Formatear como "2 uni Gaseosa Inka Kola" o simplemente "Gaseosa Inka Kola" si es 1
+        const posDescriptions: string[] = [];
+        for (const [description, count] of posItemsMap.entries()) {
+          if (count > 1) {
+            posDescriptions.push(`${count} uds ${description}`);
+          } else {
+            posDescriptions.push(description);
+          }
+        }
+        const pos = posDescriptions.join(' | ');
+
         // Asignar valores a las celdas
         const rowData = [
           fechaFormat,
@@ -1067,6 +1095,7 @@ export class ReservationsService {
           empresa,
           boleta,
           obs,
+          pos,
         ];
 
         rowData.forEach((value, idx) => {
@@ -1120,8 +1149,8 @@ export class ReservationsService {
         fgColor: { argb: 'FFE7E6E6' },
       };
 
-      // Aplicar bordes a la fila de total y extender el color gris hasta la columna L
-      for (let col = 1; col <= 12; col++) {
+      // Aplicar bordes a la fila de total y extender el color gris hasta la columna M
+      for (let col = 1; col <= 13; col++) {
         const cell = totalRow.getCell(col);
         cell.border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -1129,7 +1158,7 @@ export class ReservationsService {
           bottom: { style: 'thin', color: { argb: 'FF000000' } },
           right: { style: 'thin', color: { argb: 'FF000000' } },
         };
-        // Aplicar color gris a todas las columnas de la fila de total (A-L)
+        // Aplicar color gris a todas las columnas de la fila de total (A-M)
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',

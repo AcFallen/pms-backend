@@ -15,6 +15,7 @@ import { FolioStatus } from '../enums/folio-status.enum';
 import { Reservation } from '../../reservations/entities/reservation.entity';
 import { Payment } from '../../payments/entities/payment.entity';
 import { Invoice } from '../../invoices/entities/invoice.entity';
+import { FolioCharge } from '../../folio-charges/entities/folio-charge.entity';
 
 @Entity('folios')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -48,6 +49,9 @@ export class Folio {
 
   @OneToMany(() => Invoice, (invoice) => invoice.folio)
   invoices: Invoice[];
+
+  @OneToMany(() => FolioCharge, (folioCharge) => folioCharge.folio)
+  folioCharges: FolioCharge[];
 
   @Column({ type: 'varchar', length: 20, nullable: false, unique: true })
   folioNumber: string;
