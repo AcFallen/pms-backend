@@ -5,7 +5,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, Between } from 'typeorm';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
@@ -29,6 +29,13 @@ import { CheckoutReservationDto } from './dto/checkout-reservation.dto';
 import { FilterReservationsDto } from './dto/filter-reservations.dto';
 import { PaginatedReservationsResponseDto } from './dto/paginated-reservations-response.dto';
 import { ReservationListItemDto } from './dto/reservation-list-item.dto';
+import { FilterReservationsReportDto } from './dto/filter-reservations-report.dto';
+import * as ExcelJS from 'exceljs';
+import { Payment } from '../payments/entities/payment.entity';
+import { Invoice } from '../invoices/entities/invoice.entity';
+import { InvoiceType } from '../invoices/enums/invoice-type.enum';
+import { format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 
 @Injectable()
 export class ReservationsService {
@@ -45,6 +52,10 @@ export class ReservationsService {
     private readonly folioRepository: Repository<Folio>,
     @InjectRepository(FolioCharge)
     private readonly folioChargeRepository: Repository<FolioCharge>,
+    @InjectRepository(Payment)
+    private readonly paymentRepository: Repository<Payment>,
+    @InjectRepository(Invoice)
+    private readonly invoiceRepository: Repository<Invoice>,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -769,6 +780,373 @@ export class ReservationsService {
       // Release query runner
       await queryRunner.release();
     }
+  }
+
+  /**
+   * Genera un reporte Excel de reservas por rango de fechas
+   * Agrupa las reservas por día y calcula totales diarios
+   */
+  async generateReservationsExcelReport(
+    tenantId: number,
+    filters: FilterReservationsReportDto,
+  ): Promise<ExcelJS.Buffer> {
+    const startDate = new Date(filters.startDate);
+    const endDate = new Date(filters.endDate);
+
+    // Obtener todas las reservas en el rango de fechas con checkInTime
+    const reservations = await this.reservationRepository.find({
+      where: {
+        tenantId,
+        checkInDate: Between(startDate, endDate),
+      },
+      relations: [
+        'guest',
+        'room',
+        'folios',
+        'folios.payments',
+        'folios.invoices',
+      ],
+      order: {
+        checkInDate: 'ASC',
+        checkInTime: 'ASC',
+      },
+    });
+
+    // Filtrar solo reservas con checkInTime
+    const reservationsWithCheckIn = reservations.filter(
+      (r) => r.checkInTime !== null,
+    );
+
+    // Zona horaria de Perú
+    const timeZone = 'America/Lima';
+
+    // Agrupar reservas por día usando la fecha en hora de Perú
+    const reservationsByDay = new Map<string, typeof reservationsWithCheckIn>();
+
+    for (const reservation of reservationsWithCheckIn) {
+      // Convertir checkInTime a hora de Perú para obtener el día correcto
+      const checkInTimePeru = toZonedTime(
+        new Date(reservation.checkInTime!),
+        timeZone,
+      );
+      const dayKey = format(checkInTimePeru, 'yyyy-MM-dd');
+
+      if (!reservationsByDay.has(dayKey)) {
+        reservationsByDay.set(dayKey, []);
+      }
+      reservationsByDay.get(dayKey)!.push(reservation);
+    }
+
+    // Crear workbook y worksheet
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Reporte de Reservas');
+
+    // Definir anchos de columnas
+    worksheet.columns = [
+      { key: 'fecha', width: 15 },
+      { key: 'checkIn', width: 12 },
+      { key: 'checkOut', width: 12 },
+      { key: 'documento', width: 15 },
+      { key: 'nombres', width: 35 },
+      { key: 'habitacion', width: 12 },
+      { key: 'metodoPago', width: 25 },
+      { key: 'monto', width: 12 },
+      { key: 'ruc', width: 15 },
+      { key: 'empresa', width: 30 },
+      { key: 'boleta', width: 18 },
+      { key: 'obs', width: 20 },
+    ];
+
+    // Configurar encabezado de columnas (se aplicará después de cada encabezado de día)
+    const columnHeaders = [
+      'Fecha',
+      'Check-In',
+      'Check-Out',
+      'Documento',
+      'Nombres y Apellidos',
+      'Habitación',
+      'Método de Pago',
+      'Monto',
+      'RUC',
+      'EMPRESA',
+      'Boleta',
+      'OBS',
+    ];
+
+    let currentRow = 1;
+
+    // Meses en español
+    const mesesES = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+
+    // Ordenar días cronológicamente
+    const sortedDays = Array.from(reservationsByDay.keys()).sort();
+
+    for (const dayKey of sortedDays) {
+      const dayReservations = reservationsByDay.get(dayKey)!;
+      
+      // Parsear el dayKey (formato 'yyyy-MM-dd') correctamente para la zona horaria de Perú
+      const [year, month, day] = dayKey.split('-').map(Number);
+      
+      // Formato: "01 de enero de 2025"
+      const dayHeader = `${day.toString().padStart(2, '0')} de ${mesesES[month - 1]} de ${year}`;
+
+      // Agregar encabezado del día
+      const dayHeaderRow = worksheet.getRow(currentRow);
+      dayHeaderRow.getCell(1).value = dayHeader;
+      dayHeaderRow.getCell(1).font = {
+        bold: true,
+        size: 13,
+        color: { argb: 'FFFFFFFF' },
+      };
+      dayHeaderRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF509A95' },
+      };
+      dayHeaderRow.getCell(1).alignment = {
+        horizontal: 'left',
+        vertical: 'middle',
+      };
+
+      // Merge cells para el encabezado del día (A-L)
+      worksheet.mergeCells(currentRow, 1, currentRow, 12);
+
+      // Aplicar bordes al encabezado del día
+      for (let col = 1; col <= 12; col++) {
+        dayHeaderRow.getCell(col).border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } },
+        };
+      }
+
+      dayHeaderRow.height = 25;
+      currentRow++;
+
+      // Agregar encabezados de columnas
+      const headerRow = worksheet.getRow(currentRow);
+      columnHeaders.forEach((header, idx) => {
+        const cell = headerRow.getCell(idx + 1);
+        cell.value = header;
+        cell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF509A95' },
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } },
+        };
+      });
+      headerRow.height = 22;
+      currentRow++;
+
+      // Agregar datos de reservas del día
+      let dayTotal = 0;
+
+      for (const reservation of dayReservations) {
+        const dataRow = worksheet.getRow(currentRow);
+
+        // Zona horaria de Perú
+        const timeZone = 'America/Lima';
+
+        // Convertir checkInTime a hora de Perú y formatear fecha (dd/mm/yyyy)
+        const checkInTimePeru = reservation.checkInTime
+          ? toZonedTime(new Date(reservation.checkInTime), timeZone)
+          : null;
+
+        const fechaFormat = checkInTimePeru
+          ? format(checkInTimePeru, 'dd/MM/yyyy')
+          : new Date(reservation.checkInDate).toLocaleDateString('es-PE');
+
+        // Formatear horas (HH:MM) en zona horaria de Perú
+        const checkInHour = checkInTimePeru
+          ? format(checkInTimePeru, 'HH:mm')
+          : '';
+
+        const checkOutHour = reservation.checkOutTime
+          ? format(
+              toZonedTime(new Date(reservation.checkOutTime), timeZone),
+              'HH:mm',
+            )
+          : '';
+
+        // Documento del huésped
+        const documento = `${reservation.guest.documentType} ${reservation.guest.documentNumber}`;
+
+        // Nombres completos
+        const nombres =
+          `${reservation.guest.firstName || ''} ${reservation.guest.lastName || ''}`.trim();
+
+        // Habitación
+        const habitacion = reservation.room?.roomNumber || '';
+
+        // Métodos de pago (de todos los folios)
+        const paymentMethods = new Set<string>();
+        const paymentMethodTranslations: Record<string, string> = {
+          cash: 'Efectivo',
+          card: 'Tarjeta',
+          transfer: 'Transferencia',
+          yape: 'Yape',
+          plin: 'Plin',
+        };
+
+        for (const folio of reservation.folios) {
+          for (const payment of folio.payments || []) {
+            const translatedMethod =
+              paymentMethodTranslations[payment.paymentMethod] ||
+              payment.paymentMethod;
+            paymentMethods.add(translatedMethod);
+          }
+        }
+        const metodoPago = Array.from(paymentMethods).join(' | ') || '';
+
+        // Monto total de la reserva
+        const monto = parseFloat(reservation.totalAmount.toString());
+        dayTotal += monto;
+
+        // Buscar factura (invoice de tipo FACTURA)
+        let ruc = '';
+        let empresa = '';
+        let boleta = '';
+
+        for (const folio of reservation.folios) {
+          const facturaInvoice = folio.invoices?.find(
+            (inv) => inv.invoiceType === InvoiceType.FACTURA,
+          );
+          if (facturaInvoice) {
+            ruc = facturaInvoice.customerDocumentNumber;
+            empresa = facturaInvoice.customerName;
+            boleta = `${facturaInvoice.series}-${facturaInvoice.number}`;
+            break;
+          }
+
+          // Si no hay factura, buscar boleta
+          if (!boleta) {
+            const boletaInvoice = folio.invoices?.find(
+              (inv) => inv.invoiceType === InvoiceType.BOLETA,
+            );
+            if (boletaInvoice) {
+              boleta = `${boletaInvoice.series}-${boletaInvoice.number}`;
+            }
+          }
+        }
+
+        // OBS vacío por ahora
+        const obs = '';
+
+        // Asignar valores a las celdas
+        const rowData = [
+          fechaFormat,
+          checkInHour,
+          checkOutHour,
+          documento,
+          nombres,
+          habitacion,
+          metodoPago,
+          monto,
+          ruc,
+          empresa,
+          boleta,
+          obs,
+        ];
+
+        rowData.forEach((value, idx) => {
+          const cell = dataRow.getCell(idx + 1);
+          cell.value = value;
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: idx === 7 ? 'right' : 'left',
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } },
+          };
+
+          // Formato de número para monto
+          if (idx === 7) {
+            cell.numFmt = '#,##0.00';
+          }
+        });
+
+        dataRow.height = 20;
+        currentRow++;
+      }
+
+      // Agregar fila de total del día
+      const totalRow = worksheet.getRow(currentRow);
+
+      // Merge cells A-G para "TOTAL"
+      worksheet.mergeCells(currentRow, 1, currentRow, 7);
+      const totalLabelCell = totalRow.getCell(1);
+      totalLabelCell.value = 'TOTAL';
+      totalLabelCell.font = { bold: true, size: 11 };
+      totalLabelCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      totalLabelCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE7E6E6' },
+      };
+
+      // Celda del monto total (H)
+      const totalAmountCell = totalRow.getCell(8);
+      totalAmountCell.value = dayTotal;
+      totalAmountCell.font = { bold: true, size: 11 };
+      totalAmountCell.alignment = { horizontal: 'right', vertical: 'middle' };
+      totalAmountCell.numFmt = '#,##0.00';
+      totalAmountCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE7E6E6' },
+      };
+
+      // Aplicar bordes a la fila de total y extender el color gris hasta la columna L
+      for (let col = 1; col <= 12; col++) {
+        const cell = totalRow.getCell(col);
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } },
+        };
+        // Aplicar color gris a todas las columnas de la fila de total (A-L)
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FFE7E6E6' },
+        };
+      }
+
+      totalRow.height = 22;
+      currentRow++;
+
+      // Agregar una fila vacía entre días
+      currentRow++;
+    }
+
+    // Generar el archivo Excel como buffer
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as ExcelJS.Buffer;
   }
 
   /**

@@ -9,6 +9,7 @@ import { RoomType } from '../room-types/entities/room-type.entity';
 import { Folio } from '../folios/entities/folio.entity';
 import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { Payment } from '../payments/entities/payment.entity';
+import { Invoice } from '../invoices/entities/invoice.entity';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { Payment } from '../payments/entities/payment.entity';
       Folio,
       FolioCharge,
       Payment,
+      Invoice,
     ]),
   ],
   controllers: [ReservationsController],

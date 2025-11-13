@@ -9,6 +9,8 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  Res,
+  Header,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -19,6 +21,7 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
@@ -27,6 +30,7 @@ import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservation
 import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
 import { FilterReservationsDto } from './dto/filter-reservations.dto';
 import { PaginatedReservationsResponseDto } from './dto/paginated-reservations-response.dto';
+import { FilterReservationsReportDto } from './dto/filter-reservations-report.dto';
 import { Reservation } from './entities/reservation.entity';
 import { ReservationStatus } from './enums/reservation-status.enum';
 import {
@@ -86,13 +90,57 @@ export class ReservationsController {
     return this.reservationsService.findAll(user.tenantId, filters);
   }
 
+  @Get('reports/excel')
+  @HttpCode(HttpStatus.OK)
+  @Header(
+    'Content-Type',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  )
+  @ApiOperation({
+    summary: 'Generate Excel report of reservations by date range',
+    description:
+      'Generates an Excel report with all reservations within a date range. Groups reservations by check-in date with daily totals. Includes guest info, room, payment methods, invoice details.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Excel file generated successfully',
+    content: {
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+        schema: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid date range',
+  })
+  async downloadReservationsReport(
+    @Query() filters: FilterReservationsReportDto,
+    @CurrentUser() user: CurrentUserData,
+    @Res() res: Response,
+  ): Promise<void> {
+    const buffer =
+      await this.reservationsService.generateReservationsExcelReport(
+        user.tenantId,
+        filters,
+      );
+
+    const filename = `reservas_${filters.startDate}_${filters.endDate}.xlsx`;
+
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    res.send(Buffer.from(buffer));
+  }
+
   @Get('calendar-reservations')
   @ApiOperation({
     summary: 'Get reservations for calendar grid',
     description:
       'Retrieves simplified reservation data within a specific date range for the calendar view. Excludes cancelled and checked-out reservations. Returns only essential data: publicId, publicRoomId, guestName, checkIn, checkOut.',
   })
- 
   @ApiResponse({
     status: 200,
     description: 'List of simplified reservations for calendar grid',
