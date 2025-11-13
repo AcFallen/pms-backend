@@ -782,7 +782,7 @@ export class ReservationsService {
     }
   }
 
- /**
+  /**
    * Genera un reporte Excel de reservas por rango de fechas
    * Agrupa las reservas por día y calcula totales diarios
    */
@@ -790,14 +790,19 @@ export class ReservationsService {
     tenantId: number,
     filters: FilterReservationsReportDto,
   ): Promise<ExcelJS.Buffer> {
-    const startDate = new Date(filters.startDate);
-    const endDate = new Date(filters.endDate);
+    // Zona horaria de Perú
+    const timeZone = 'America/Lima';
+
+    // Crear fechas en zona horaria de Perú (UTC-5)
+    // PostgreSQL almacena en UTC, así que debemos ajustar 5 horas adelante para compensar
+    const startDatePeru = new Date(`${filters.startDate}T05:00:00.000Z`); // 00:00 Perú = 05:00 UTC
+    const endDatePeru = new Date(`${filters.endDate}T04:59:59.999Z`); // 23:59:59 Perú = 04:59:59 UTC del día siguiente
 
     // Obtener todas las reservas en el rango de fechas con checkInTime
     const reservations = await this.reservationRepository.find({
       where: {
         tenantId,
-        checkInDate: Between(startDate, endDate),
+        checkInTime: Between(startDatePeru, endDatePeru),
       },
       relations: [
         'guest',
@@ -808,23 +813,16 @@ export class ReservationsService {
         'folios.folioCharges',
       ],
       order: {
-        checkInDate: 'ASC',
         checkInTime: 'ASC',
       },
     });
 
-    // Filtrar solo reservas con checkInTime
-    const reservationsWithCheckIn = reservations.filter(
-      (r) => r.checkInTime !== null,
-    );
-
-    // Zona horaria de Perú
-    const timeZone = 'America/Lima';
+    // Ya filtramos por checkInTime en la consulta, todas tienen checkInTime
 
     // Agrupar reservas por día usando la fecha en hora de Perú
-    const reservationsByDay = new Map<string, typeof reservationsWithCheckIn>();
+    const reservationsByDay = new Map<string, typeof reservations>();
 
-    for (const reservation of reservationsWithCheckIn) {
+    for (const reservation of reservations) {
       // Convertir checkInTime a hora de Perú para obtener el día correcto
       const checkInTimePeru = toZonedTime(
         new Date(reservation.checkInTime!),
@@ -968,9 +966,6 @@ export class ReservationsService {
       for (const reservation of dayReservations) {
         const dataRow = worksheet.getRow(currentRow);
 
-        // Zona horaria de Perú
-        const timeZone = 'America/Lima';
-
         // Convertir checkInTime a hora de Perú y formatear fecha (dd/mm/yyyy)
         const checkInTimePeru = reservation.checkInTime
           ? toZonedTime(new Date(reservation.checkInTime), timeZone)
@@ -1040,15 +1035,13 @@ export class ReservationsService {
         }
         // Si es solo efectivo o no hay métodos de pago, nombresCellColor permanece null (sin color)
 
-        // Monto total de la reserva
-        const monto = parseFloat(reservation.totalAmount.toString());
-        dayTotal += monto;
-
-        // Buscar factura (invoice de tipo FACTURA) o boleta
+        // Buscar factura (invoice de tipo FACTURA) o boleta para determinar el monto
         let ruc = '';
         let empresa = '';
         let boleta = '';
         let invoiceType: InvoiceType | null = null;
+        let monto = 0;
+        let foundInvoice: any = null;
 
         for (const folio of reservation.folios) {
           const facturaInvoice = folio.invoices?.find(
@@ -1059,6 +1052,7 @@ export class ReservationsService {
             empresa = facturaInvoice.customerName;
             boleta = `${facturaInvoice.series}-${facturaInvoice.number}`;
             invoiceType = InvoiceType.FACTURA;
+            foundInvoice = facturaInvoice;
             break;
           }
 
@@ -1070,9 +1064,18 @@ export class ReservationsService {
             if (boletaInvoice) {
               boleta = `${boletaInvoice.series}-${boletaInvoice.number}`;
               invoiceType = InvoiceType.BOLETA;
+              foundInvoice = boletaInvoice;
             }
           }
         }
+
+        // Determinar el monto: si tiene invoice usar el total del invoice, sino usar totalAmount de la reserva
+        if (foundInvoice) {
+          monto = parseFloat(foundInvoice.total.toString());
+        } else {
+          monto = parseFloat(reservation.totalAmount.toString());
+        }
+        dayTotal += monto;
 
         // Determinar el color de fondo para la celda de boleta
         let boletaCellColor: string | null = null;
@@ -1257,7 +1260,7 @@ export class ReservationsService {
     // Generar el archivo Excel como buffer
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as ExcelJS.Buffer;
-  } 
+  }
 
   /**
    * Generates a unique folio number in format: FOL-YYYY-XXXXX
