@@ -1069,8 +1069,28 @@ export class ReservationsService {
           }
         }
 
-        // Monto total de la reserva (siempre usar totalAmount)
-        monto = parseFloat(reservation.totalAmount.toString());
+        // Monto: Calcular según includeCharges
+        if (filters.includeCharges) {
+          // Si includeCharges es true, sumar TODOS los cargos de los folios
+          let totalCharges = 0;
+          for (const folio of reservation.folios) {
+            for (const charge of folio.folioCharges || []) {
+              totalCharges += parseFloat(charge.total.toString());
+            }
+          }
+          monto = totalCharges;
+        } else {
+          // Si includeCharges es false, solo sumar cargos de tipo ROOM
+          let roomCharges = 0;
+          for (const folio of reservation.folios) {
+            for (const charge of folio.folioCharges || []) {
+              if (charge.chargeType === ChargeType.ROOM) {
+                roomCharges += parseFloat(charge.total.toString());
+              }
+            }
+          }
+          monto = roomCharges;
+        }
         dayTotal += monto;
 
         // Determinar el color de fondo para la celda de boleta
