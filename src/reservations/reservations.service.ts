@@ -1069,12 +1069,8 @@ export class ReservationsService {
           }
         }
 
-        // Determinar el monto: si tiene invoice usar el total del invoice, sino usar totalAmount de la reserva
-        if (foundInvoice) {
-          monto = parseFloat(foundInvoice.total.toString());
-        } else {
-          monto = parseFloat(reservation.totalAmount.toString());
-        }
+        // Monto total de la reserva (siempre usar totalAmount)
+        monto = parseFloat(reservation.totalAmount.toString());
         dayTotal += monto;
 
         // Determinar el color de fondo para la celda de boleta
@@ -1119,8 +1115,34 @@ export class ReservationsService {
           }
         }
 
-        // OBS vacío por ahora
-        const obs = '';
+        // OBS: Detalle de pagos con montos (solo si hay más de un método de pago)
+        let obs = '';
+
+        // Solo mostrar detalle si hay más de un método de pago
+        if (rawPaymentMethods.size > 1) {
+          const obsPayments: string[] = [];
+          const paymentsByMethod = new Map<string, number>(); // Agrupar pagos por método
+
+          for (const folio of reservation.folios) {
+            for (const payment of folio.payments || []) {
+              const method = payment.paymentMethod;
+              const amount = parseFloat(payment.amount.toString());
+              paymentsByMethod.set(
+                method,
+                (paymentsByMethod.get(method) || 0) + amount,
+              );
+            }
+          }
+
+          // Formatear como "Método | S./ Monto"
+          for (const [method, amount] of paymentsByMethod.entries()) {
+            const translatedMethod =
+              paymentMethodTranslations[method] || method;
+            obsPayments.push(`${translatedMethod} | S./ ${amount.toFixed(2)}`);
+          }
+
+          obs = obsPayments.join('\n');
+        }
 
         // POS: Agrupar y contar descripciones de folio charges que NO sean de tipo ROOM
         const posItemsMap = new Map<string, number>();
