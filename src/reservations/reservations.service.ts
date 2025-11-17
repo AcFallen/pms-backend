@@ -320,6 +320,8 @@ export class ReservationsService {
     // Get reservation IDs that have invoices
     const reservationIds = reservations.map((r) => r.id);
     let reservationsWithInvoices: any[] = [];
+    let reservationPayments: any[] = [];
+    let reservationFolios: any[] = [];
 
     // Only query if there are reservations to check
     if (reservationIds.length > 0) {
@@ -332,6 +334,35 @@ export class ReservationsService {
         .where('reservation.id IN (:...reservationIds)', { reservationIds })
         .andWhere('reservation.tenantId = :tenantId', { tenantId })
         .getRawMany();
+
+      // Get payment methods for each reservation
+      reservationPayments = await this.dataSource
+        .createQueryBuilder()
+        .select('reservation.id', 'reservationId')
+        .addSelect(
+          'ARRAY_AGG(DISTINCT payment."paymentMethod"::text ORDER BY payment."paymentMethod"::text)',
+          'paymentMethods',
+        )
+        .from('reservations', 'reservation')
+        .innerJoin('folios', 'folio', 'folio."reservationId" = reservation.id')
+        .innerJoin('payments', 'payment', 'payment."folioId" = folio.id')
+        .where('reservation.id IN (:...reservationIds)', { reservationIds })
+        .andWhere('reservation."tenantId" = :tenantId', { tenantId })
+        .groupBy('reservation.id')
+        .getRawMany();
+
+      // Get folio info (balance and status) for each reservation
+      reservationFolios = await this.dataSource
+        .createQueryBuilder()
+        .select('folio."reservationId"', 'reservationId')
+        .addSelect('folio.balance', 'folioBalance')
+        .addSelect('folio.status', 'folioStatus')
+        .from('folios', 'folio')
+        .where('folio."reservationId" IN (:...reservationIds)', {
+          reservationIds,
+        })
+        .andWhere('folio."tenantId" = :tenantId', { tenantId })
+        .getRawMany();
     }
 
     // Create a Set for quick lookup
@@ -339,30 +370,58 @@ export class ReservationsService {
       reservationsWithInvoices.map((r) => r.reservationId),
     );
 
+    // Create a Map for payment methods lookup (returns array or empty array)
+    const paymentMethodsMap = new Map<number, string[]>(
+      reservationPayments.map((r) => [
+        r.reservationId,
+        r.paymentMethods || [],
+      ]),
+    );
+
+    // Create a Map for folio info lookup
+    const folioInfoMap = new Map<
+      number,
+      { balance: number; status: string }
+    >(
+      reservationFolios.map((r) => [
+        r.reservationId,
+        {
+          balance: parseFloat(r.folioBalance),
+          status: r.folioStatus,
+        },
+      ]),
+    );
+
     // Transform to DTO
-    const data: ReservationListItemDto[] = reservations.map((reservation) => ({
-      publicId: reservation.publicId,
-      reservationCode: reservation.reservationCode,
-      guestFullName: `${reservation.guest.firstName} ${reservation.guest.lastName}`,
-      guestDocument: reservation.guest.documentNumber,
-      checkInDate:
-        reservation.checkInDate instanceof Date
-          ? reservation.checkInDate.toISOString().split('T')[0]
-          : reservation.checkInDate,
-      checkOutDate:
-        reservation.checkOutDate instanceof Date
-          ? reservation.checkOutDate.toISOString().split('T')[0]
-          : reservation.checkOutDate,
-      roomNumber: reservation.room?.roomNumber || 'N/A',
-      nights: reservation.nights ?? 0,
-      hours: reservation.hours,
-      totalAmount: parseFloat(reservation.totalAmount.toString()),
-      status: reservation.status,
-      createdAt: reservation.createdAt,
-      hasInvoice: invoicedReservationIds.has(reservation.id),
-      checkInTime: reservation.checkInTime,
-      checkOutTime: reservation.checkOutTime,
-    }));
+    const data: ReservationListItemDto[] = reservations.map((reservation) => {
+      const folioInfo = folioInfoMap.get(reservation.id);
+      return {
+        publicId: reservation.publicId,
+        reservationCode: reservation.reservationCode,
+        guestFullName: `${reservation.guest.firstName} ${reservation.guest.lastName}`,
+        guestDocument: reservation.guest.documentNumber,
+        checkInDate:
+          reservation.checkInDate instanceof Date
+            ? reservation.checkInDate.toISOString().split('T')[0]
+            : reservation.checkInDate,
+        checkOutDate:
+          reservation.checkOutDate instanceof Date
+            ? reservation.checkOutDate.toISOString().split('T')[0]
+            : reservation.checkOutDate,
+        roomNumber: reservation.room?.roomNumber || 'N/A',
+        nights: reservation.nights ?? 0,
+        hours: reservation.hours,
+        totalAmount: parseFloat(reservation.totalAmount.toString()),
+        status: reservation.status,
+        createdAt: reservation.createdAt,
+        hasInvoice: invoicedReservationIds.has(reservation.id),
+        paymentMethods: paymentMethodsMap.get(reservation.id) || [],
+        folioBalance: folioInfo?.balance ?? null,
+        folioStatus: folioInfo?.status ?? null,
+        checkInTime: reservation.checkInTime,
+        checkOutTime: reservation.checkOutTime,
+      };
+    });
 
     // Calculate total pages
     const totalPages = Math.ceil(total / limit);

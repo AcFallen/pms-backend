@@ -81,4 +81,40 @@ export class ReservationListItemDto {
     example: true,
   })
   hasInvoice: boolean;
+
+  @ApiProperty({
+    description:
+      'Payment methods used for this reservation as an array. Empty array if no payments.',
+    example: ['cash', 'yape'],
+    type: [String],
+  })
+  paymentMethods: string[];
+
+  @ApiProperty({
+    description: 'Folio balance (amount owed by the guest)',
+    example: 150.5,
+    nullable: true,
+  })
+  folioBalance: number | null;
+
+  @ApiProperty({
+    description: 'Folio status (open or closed)',
+    example: 'open',
+    nullable: true,
+  })
+  folioStatus: string | null;
+
+  @ApiProperty({
+    description: 'Check-in time (timestamp)',
+    example: '2025-11-10T14:00:00Z',
+    nullable: true,
+  })
+  checkInTime: Date | null;
+
+  @ApiProperty({
+    description: 'Check-out time (timestamp)',
+    example: '2025-11-12T12:00:00Z',
+    nullable: true,
+  })
+  checkOutTime: Date | null;
 }
