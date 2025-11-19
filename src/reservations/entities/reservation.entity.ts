@@ -18,6 +18,7 @@ import { RoomType } from '../../room-types/entities/room-type.entity';
 import { Folio } from '../../folios/entities/folio.entity';
 import { ReservationStatus } from '../enums/reservation-status.enum';
 import { ReservationSource } from '../enums/reservation-source.enum';
+import { VehicleType } from '../enums/vehicle-type.enum';
 
 @Entity('reservations')
 @Index(['tenantId', 'publicId'], { unique: true })
@@ -149,6 +150,22 @@ export class Reservation {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  @Column({
+    type: 'boolean',
+    nullable: false,
+    default: false,
+    comment: 'Indica si la reserva incluye uso de cochera/garage',
+  })
+  hasGarage: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: VehicleType,
+    nullable: true,
+    comment: 'Tipo de vehículo (CAR o MOTORCYCLE) si hasGarage es true',
+  })
+  vehicleType: VehicleType | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

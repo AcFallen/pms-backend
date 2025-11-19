@@ -162,6 +162,8 @@ export class ReservationsService {
         appliedRate: createReservationDto.appliedRate,
         totalAmount: createReservationDto.totalAmount,
         notes: createReservationDto.notes,
+        hasGarage: createReservationDto.hasGarage ?? false,
+        vehicleType: createReservationDto.vehicleType ?? null,
         guestId: guest.id,
         roomTypeId: roomType.id,
         roomId,
@@ -467,6 +469,8 @@ export class ReservationsService {
         'reservation.appliedRate',
         'reservation.totalAmount',
         'reservation.notes',
+        'reservation.hasGarage',
+        'reservation.vehicleType',
         'reservation.createdAt',
         'reservation.updatedAt',
       ])

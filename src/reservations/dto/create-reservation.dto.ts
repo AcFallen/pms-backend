@@ -5,12 +5,14 @@ import {
   IsNumber,
   IsEnum,
   IsDateString,
+  IsBoolean,
   Min,
   MaxLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ReservationStatus } from '../enums/reservation-status.enum';
 import { ReservationSource } from '../enums/reservation-source.enum';
+import { VehicleType } from '../enums/vehicle-type.enum';
 
 export class CreateReservationDto {
   @ApiProperty({
@@ -150,4 +152,24 @@ export class CreateReservationDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @ApiProperty({
+    description: 'Indica si la reserva incluye uso de cochera/garage',
+    example: false,
+    default: false,
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  hasGarage?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Tipo de vehículo (CAR o MOTORCYCLE). Requerido solo si hasGarage es true',
+    enum: VehicleType,
+    example: VehicleType.CAR,
+  })
+  @IsEnum(VehicleType)
+  @IsOptional()
+  vehicleType?: VehicleType;
 }
