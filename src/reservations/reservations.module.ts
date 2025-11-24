@@ -10,6 +10,7 @@ import { Folio } from '../folios/entities/folio.entity';
 import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { Invoice } from '../invoices/entities/invoice.entity';
       Payment,
       Invoice,
     ]),
+    NotificationsModule,
   ],
   controllers: [ReservationsController],
   providers: [ReservationsService],

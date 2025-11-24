@@ -25,6 +25,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { CashierModule } from './cashier/cashier.module';
 import { PosModule } from './pos/pos.module';
 import { GuestIncidentsModule } from './guest-incidents/guest-incidents.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -45,7 +46,7 @@ import { GuestIncidentsModule } from './guest-incidents/guest-incidents.module';
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
-        logging: configService.get('NODE_ENV') === 'development',
+        // logging: configService.get('NODE_ENV') === 'development',
       }),
     }),
     UsersModule,
@@ -69,6 +70,7 @@ import { GuestIncidentsModule } from './guest-incidents/guest-incidents.module';
     CashierModule,
     PosModule,
     GuestIncidentsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

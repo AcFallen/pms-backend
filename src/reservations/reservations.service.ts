@@ -36,6 +36,8 @@ import { Invoice } from '../invoices/entities/invoice.entity';
 import { InvoiceType } from '../invoices/enums/invoice-type.enum';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
 
 @Injectable()
 export class ReservationsService {
@@ -57,6 +59,8 @@ export class ReservationsService {
     @InjectRepository(Invoice)
     private readonly invoiceRepository: Repository<Invoice>,
     private readonly dataSource: DataSource,
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   async create(
@@ -832,6 +836,39 @@ export class ReservationsService {
 
       // Commit transaction
       await queryRunner.commitTransaction();
+
+      // 10. Send notification to housekeepers after successful checkout
+      try {
+        // Get updated reservation with guest and room info
+        const updatedReservation = await this.reservationRepository.findOne({
+          where: { publicId, tenantId },
+          relations: ['guest', 'room'],
+        });
+
+        if (updatedReservation) {
+          const notifications = await this.notificationsService.notifyCheckout(
+            tenantId,
+            {
+              publicId: updatedReservation.publicId,
+              reservationCode: updatedReservation.reservationCode,
+              roomNumber: updatedReservation.room?.roomNumber || 'N/A',
+              guestName: `${updatedReservation.guest?.firstName || ''} ${updatedReservation.guest?.lastName || ''}`.trim(),
+              checkOutTime: new Date(),
+            },
+          );
+
+          // Emit real-time notifications via WebSocket
+          notifications.forEach((notification) => {
+            this.notificationsGateway.emitToUser(
+              notification.userId,
+              notification,
+            );
+          });
+        }
+      } catch (notificationError) {
+        // Log error but don't fail the checkout if notification fails
+        console.error('Failed to send checkout notification:', notificationError);
+      }
 
       // Return updated reservation
       return await this.findByPublicId(publicId, tenantId);
