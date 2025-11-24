@@ -15,6 +15,8 @@ import {
   RoomTypeIncomeDto,
   IncomeSunatComparisonDto,
   CashInvoicesDto,
+  PosWalkInSalesDto,
+  RecentReservationDto,
 } from './dto/dashboard-metrics.dto';
 import { DashboardFiltersDto } from './dto/dashboard-filters.dto';
 
@@ -126,6 +128,27 @@ export class DashboardService {
       monthEnd,
     );
 
+    // 7. Ventas del POS (walk-ins sin reserva)
+    const posWalkInSales = await this.getPosWalkInSales(
+      tenantId,
+      monthStart,
+      monthEnd,
+    );
+
+    // 8. Últimas 5 reservas con check-in (CHECKED_IN)
+    const recentCheckIns = await this.getRecentReservations(
+      tenantId,
+      ReservationStatus.CHECKED_IN,
+      5,
+    );
+
+    // 9. Últimas 5 reservas con check-out (CHECKED_OUT)
+    const recentCheckOuts = await this.getRecentReservations(
+      tenantId,
+      ReservationStatus.CHECKED_OUT,
+      5,
+    );
+
     return {
       checkInsToday,
       incomeByPaymentMethod,
@@ -133,6 +156,9 @@ export class DashboardService {
       incomeByRoomType,
       documentsGenerated,
       cashInvoices,
+      posWalkInSales,
+      recentCheckIns,
+      recentCheckOuts,
     };
   }
 
@@ -249,28 +275,119 @@ export class DashboardService {
     monthStart: Date,
     monthEnd: Date,
   ): Promise<CashInvoicesDto> {
-    // Obtener facturas aceptadas del mes que fueron pagadas en efectivo
-    // IMPORTANTE: Usamos invoice.total que refleja solo los cargos incluidos en la factura
-    const result = await this.invoiceRepository
+    // Obtener facturas aceptadas del mes con sus folios y pagos
+    const invoices = await this.invoiceRepository
       .createQueryBuilder('invoice')
-      .select('SUM(invoice.total)', 'totalCashInvoiced')
-      .addSelect('COUNT(DISTINCT invoice.id)', 'count')
-      .leftJoin('invoice.folio', 'folio')
-      .leftJoin('folio.payments', 'payment')
+      .leftJoinAndSelect('invoice.folio', 'folio')
+      .leftJoinAndSelect('folio.payments', 'payment')
       .where('invoice.tenantId = :tenantId', { tenantId })
       .andWhere('invoice.createdAt BETWEEN :monthStart AND :monthEnd', {
         monthStart,
         monthEnd,
       })
       .andWhere('invoice.status = :status', { status: InvoiceStatus.ACCEPTED })
-      .andWhere('payment.paymentMethod = :paymentMethod', {
-        paymentMethod: PaymentMethod.CASH,
+      .getMany();
+
+    let totalCashInvoiced = 0;
+    let countInvoicesWithCash = 0;
+
+    // Calcular la proporción de efectivo para cada factura
+    for (const invoice of invoices) {
+      if (!invoice.folio || !invoice.folio.payments || invoice.folio.payments.length === 0) {
+        continue;
+      }
+
+      // Calcular el total de pagos del folio
+      const totalPayments = invoice.folio.payments.reduce(
+        (sum, payment) => sum + parseFloat(payment.amount.toString()),
+        0,
+      );
+
+      // Calcular el total de pagos en efectivo
+      const cashPayments = invoice.folio.payments
+        .filter((payment) => payment.paymentMethod === PaymentMethod.CASH)
+        .reduce((sum, payment) => sum + parseFloat(payment.amount.toString()), 0);
+
+      // Si hubo pagos en efectivo, calcular la proporción del monto facturado
+      if (cashPayments > 0 && totalPayments > 0) {
+        const cashProportion = cashPayments / totalPayments;
+        const cashInvoiceAmount = parseFloat(invoice.total.toString()) * cashProportion;
+        totalCashInvoiced += cashInvoiceAmount;
+        countInvoicesWithCash++;
+      }
+    }
+
+    return {
+      totalCashInvoiced: parseFloat(totalCashInvoiced.toFixed(2)),
+      count: countInvoicesWithCash,
+    };
+  }
+
+  private async getPosWalkInSales(
+    tenantId: number,
+    monthStart: Date,
+    monthEnd: Date,
+  ): Promise<PosWalkInSalesDto> {
+    // Obtener folios sin reserva (walk-ins / ventas directas del POS)
+    // con sus pagos del período especificado
+    const result = await this.folioRepository
+      .createQueryBuilder('folio')
+      .select('SUM(folio.total)', 'totalPosIncome')
+      .addSelect('COUNT(folio.id)', 'transactionCount')
+      .leftJoin('folio.payments', 'payment')
+      .where('folio.tenantId = :tenantId', { tenantId })
+      .andWhere('folio.reservationId IS NULL')
+      .andWhere('folio.createdAt BETWEEN :monthStart AND :monthEnd', {
+        monthStart,
+        monthEnd,
+      })
+      .andWhere('payment.paymentDate BETWEEN :monthStart AND :monthEnd', {
+        monthStart,
+        monthEnd,
       })
       .getRawOne();
 
     return {
-      totalCashInvoiced: parseFloat(result?.totalCashInvoiced || '0'),
-      count: parseInt(result?.count || '0', 10),
+      totalPosIncome: parseFloat(result?.totalPosIncome || '0'),
+      transactionCount: parseInt(result?.transactionCount || '0', 10),
     };
+  }
+
+  private async getRecentReservations(
+    tenantId: number,
+    status: ReservationStatus,
+    limit: number,
+  ): Promise<RecentReservationDto[]> {
+    // Ordenar por checkInTime para CHECKED_IN y por checkOutTime para CHECKED_OUT
+    const orderByField =
+      status === ReservationStatus.CHECKED_IN
+        ? 'reservation.checkInTime'
+        : 'reservation.checkOutTime';
+
+    const reservations = await this.reservationRepository
+      .createQueryBuilder('reservation')
+      .leftJoinAndSelect('reservation.guest', 'guest')
+      .leftJoinAndSelect('reservation.room', 'room')
+      .leftJoinAndSelect('reservation.roomType', 'roomType')
+      .where('reservation.tenantId = :tenantId', { tenantId })
+      .andWhere('reservation.status = :status', { status })
+      .orderBy(orderByField, 'DESC')
+      .take(limit)
+      .getMany();
+
+    return reservations.map((reservation) => ({
+      publicId: reservation.publicId,
+      reservationCode: reservation.reservationCode,
+      roomNumber: reservation.room?.roomNumber || null,
+      roomTypeName: reservation.roomType.name,
+      checkInTime: reservation.checkInTime,
+      checkOutTime: reservation.checkOutTime,
+      guest: {
+        firstName: reservation.guest.firstName,
+        lastName: reservation.guest.lastName,
+        documentNumber: reservation.guest.documentNumber,
+        phone: reservation.guest.phone,
+      },
+    }));
   }
 }

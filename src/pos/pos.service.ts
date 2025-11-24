@@ -284,7 +284,14 @@ export class PosService {
 
       await queryRunner.manager.save(Folio, folio);
 
-      // 10. Commit transaction
+      // 10. Update reservation totalAmount
+      reservation.totalAmount = (
+        parseFloat(reservation.totalAmount.toString()) + total
+      ).toFixed(2);
+
+      await queryRunner.manager.save(Reservation, reservation);
+
+      // 11. Commit transaction
       await queryRunner.commitTransaction();
 
       return savedCharge;

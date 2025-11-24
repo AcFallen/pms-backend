@@ -42,6 +42,7 @@ export default class MainSeeder implements Seeder {
       department: 'Lima',
       status: TenantStatus.ACTIVE,
       plan: TenantPlan.PREMIUM,
+      maxInvoicesPerMonth: 1000,
       maxRooms: 50,
     });
 

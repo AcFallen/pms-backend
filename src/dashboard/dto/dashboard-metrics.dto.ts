@@ -71,6 +71,95 @@ export class CashInvoicesDto {
   count: number;
 }
 
+export class PosWalkInSalesDto {
+  @ApiProperty({
+    description:
+      'Total income from POS walk-in sales (folios without reservation)',
+    example: 1200.0,
+  })
+  totalPosIncome: number;
+
+  @ApiProperty({
+    description: 'Count of POS transactions (walk-in folios)',
+    example: 15,
+  })
+  transactionCount: number;
+}
+
+export class RecentReservationGuestDto {
+  @ApiProperty({
+    description: 'Guest first name',
+    example: 'Juan',
+  })
+  firstName: string;
+
+  @ApiProperty({
+    description: 'Guest last name',
+    example: 'Pérez',
+  })
+  lastName: string;
+
+  @ApiProperty({
+    description: 'Guest document number',
+    example: '12345678',
+  })
+  documentNumber: string;
+
+  @ApiProperty({
+    description: 'Guest phone',
+    example: '+51 999 888 777',
+    nullable: true,
+  })
+  phone: string | null;
+}
+
+export class RecentReservationDto {
+  @ApiProperty({
+    description: 'Reservation public ID',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
+  publicId: string;
+
+  @ApiProperty({
+    description: 'Reservation code',
+    example: 'RES-2025-001',
+  })
+  reservationCode: string;
+
+  @ApiProperty({
+    description: 'Room number',
+    example: '101',
+    nullable: true,
+  })
+  roomNumber: string | null;
+
+  @ApiProperty({
+    description: 'Room type name',
+    example: 'Suite Matrimonial',
+  })
+  roomTypeName: string;
+
+  @ApiProperty({
+    description: 'Check-in timestamp',
+    example: '2025-11-24T14:30:00.000Z',
+    nullable: true,
+  })
+  checkInTime: Date | null;
+
+  @ApiProperty({
+    description: 'Check-out timestamp',
+    example: '2025-11-25T12:00:00.000Z',
+    nullable: true,
+  })
+  checkOutTime: Date | null;
+
+  @ApiProperty({
+    description: 'Guest information',
+    type: RecentReservationGuestDto,
+  })
+  guest: RecentReservationGuestDto;
+}
+
 export class DashboardMetricsDto {
   @ApiProperty({
     description: 'Number of check-ins today',
@@ -108,4 +197,23 @@ export class DashboardMetricsDto {
     type: CashInvoicesDto,
   })
   cashInvoices: CashInvoicesDto;
+
+  @ApiProperty({
+    description:
+      'POS walk-in sales (folios without reservation - current month)',
+    type: PosWalkInSalesDto,
+  })
+  posWalkInSales: PosWalkInSalesDto;
+
+  @ApiProperty({
+    description: 'Last 5 recent check-ins (CHECKED_IN status)',
+    type: [RecentReservationDto],
+  })
+  recentCheckIns: RecentReservationDto[];
+
+  @ApiProperty({
+    description: 'Last 5 recent check-outs (CHECKED_OUT status)',
+    type: [RecentReservationDto],
+  })
+  recentCheckOuts: RecentReservationDto[];
 }
