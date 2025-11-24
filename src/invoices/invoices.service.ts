@@ -8,6 +8,7 @@ import { Repository, DataSource, IsNull } from 'typeorm';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
+import { GenerateInvoiceWithoutSunatDto } from './dto/generate-invoice-without-sunat.dto';
 import { FilterInvoicesDto } from './dto/filter-invoices.dto';
 import { PaginatedInvoicesResponseDto } from './dto/paginated-invoices-response.dto';
 import { InvoiceListItemDto } from './dto/invoice-list-item.dto';
@@ -150,6 +151,221 @@ export class InvoicesService {
     }
 
     return invoice;
+  }
+
+  /**
+   * Generate invoice from folio WITHOUT sending to SUNAT (for demo/development)
+   * This method simulates the invoice generation process locally without calling Nubefact API
+   */
+  async generateFromFolioWithoutSunat(
+    dto: GenerateInvoiceWithoutSunatDto,
+    tenantId: number,
+  ): Promise<Invoice> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Get tenant and check invoice limits
+      const tenant = await queryRunner.manager.findOne(Tenant, {
+        where: { id: tenantId },
+      });
+
+      if (!tenant) {
+        throw new NotFoundException(`Tenant ${tenantId} not found`);
+      }
+
+      // Check if we need to reset the monthly counter
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastResetDate = tenant.lastInvoiceCountReset
+        ? new Date(tenant.lastInvoiceCountReset)
+        : null;
+
+      // Reset counter if it's a new month or never been reset
+      if (!lastResetDate || lastResetDate < currentMonthStart) {
+        tenant.currentMonthInvoiceCount = 0;
+        tenant.lastInvoiceCountReset = currentMonthStart;
+        await queryRunner.manager.save(Tenant, tenant);
+      }
+
+      // Validate invoice limit
+      if (tenant.currentMonthInvoiceCount >= tenant.maxInvoicesPerMonth) {
+        throw new BadRequestException(
+          `Monthly invoice limit reached. Your plan allows ${tenant.maxInvoicesPerMonth} invoices per month. Current count: ${tenant.currentMonthInvoiceCount}. Please upgrade your plan or wait until next month.`,
+        );
+      }
+
+      // 2. Find and validate folio
+      const folio = await queryRunner.manager.findOne(Folio, {
+        where: { publicId: dto.folioPublicId, tenantId },
+        relations: ['reservation'],
+      });
+
+      if (!folio) {
+        throw new NotFoundException(`Folio ${dto.folioPublicId} not found`);
+      }
+
+      if (folio.status !== FolioStatus.CLOSED) {
+        throw new BadRequestException(
+          `Cannot generate invoice from folio ${folio.folioNumber}. Folio must be CLOSED. Current status: ${folio.status}`,
+        );
+      }
+
+      // 3. Get reservation and guest data (optional for walk-in folios)
+      let reservation: Reservation | null = null;
+      let guest: Guest | null = null;
+
+      if (folio.reservationId) {
+        // Folio with reservation (hotel guest)
+        reservation = await queryRunner.manager.findOne(Reservation, {
+          where: { id: folio.reservationId, tenantId },
+        });
+
+        if (!reservation) {
+          throw new NotFoundException(
+            `Reservation for folio ${folio.folioNumber} not found`,
+          );
+        }
+
+        guest = await queryRunner.manager.findOne(Guest, {
+          where: { id: reservation.guestId, tenantId },
+        });
+
+        if (!guest) {
+          throw new NotFoundException(
+            `Guest for reservation ${reservation.reservationCode} not found`,
+          );
+        }
+      }
+
+      // 4. Get folio charges (items) - only those marked for invoicing and not already invoiced
+      const folioCharges = await queryRunner.manager.find(FolioCharge, {
+        where: {
+          folioId: folio.id,
+          tenantId,
+          includedInInvoice: true, // Only charges marked for invoicing
+          invoiceId: IsNull(), // Not already invoiced
+        },
+        order: { chargeDate: 'ASC' },
+      });
+
+      if (folioCharges.length === 0) {
+        throw new BadRequestException(
+          `Folio ${folio.folioNumber} has no charges available to invoice. All charges may be excluded or already invoiced.`,
+        );
+      }
+
+      // 5. Determine customer data (from DTO or guest)
+      // For walk-in folios (no reservation), customer data MUST come from DTO
+      if (!folio.reservationId && !dto.customerDocumentNumber) {
+        throw new BadRequestException(
+          'Customer document number is required for walk-in folios (POS sales)',
+        );
+      }
+
+      const customerDocumentType = dto.customerDocumentType
+        ? dto.customerDocumentType
+        : guest
+          ? this.mapDocumentType(guest.documentType)
+          : CustomerDocumentType.DNI;
+
+      const customerDocumentNumber =
+        dto.customerDocumentNumber || guest?.documentNumber || '';
+
+      const customerName = dto.customerName
+        ? dto.customerName
+        : guest
+          ? `${guest.firstName} ${guest.lastName}`.toUpperCase()
+          : 'CLIENTE GENÉRICO';
+
+      const customerAddress =
+        dto.customerAddress || guest?.address || 'SIN DIRECCIÓN';
+
+      // 6. Get voucher series for tenant
+      const voucherType = this.mapInvoiceTypeToVoucherType(dto.invoiceType);
+      const voucherSeries = await queryRunner.manager.findOne(
+        TenantVoucherSeries,
+        {
+          where: {
+            tenantId,
+            voucherType,
+            isActive: true,
+            isDefault: true,
+          },
+        },
+      );
+
+      if (!voucherSeries) {
+        throw new NotFoundException(
+          `No active default voucher series found for ${dto.invoiceType}. Please configure series in settings.`,
+        );
+      }
+
+      // 7. Calculate totals (IGV 18%) based ONLY on charges to be invoiced
+      const totalConIGV = folioCharges.reduce(
+        (sum, charge) => sum + parseFloat(charge.total.toString()),
+        0,
+      );
+      const subtotalSinIGV = totalConIGV / 1.18;
+      const igv = totalConIGV - subtotalSinIGV;
+
+      const subtotal = parseFloat(subtotalSinIGV.toFixed(2));
+      const igvRounded = parseFloat(igv.toFixed(2));
+      const total = parseFloat(totalConIGV.toFixed(2));
+
+      // 8. Create invoice record with ACCEPTED status (simulating SUNAT acceptance)
+      const invoice = queryRunner.manager.create(Invoice, {
+        tenantId,
+        folioId: folio.id,
+        voucherSeriesId: voucherSeries.id,
+        invoiceType: dto.invoiceType,
+        series: voucherSeries.series,
+        number: String(voucherSeries.currentNumber).padStart(8, '0'),
+        fullNumber: `${voucherSeries.series}-${String(voucherSeries.currentNumber).padStart(8, '0')}`,
+        customerDocumentType,
+        customerDocumentNumber,
+        customerName,
+        customerAddress,
+        subtotal,
+        igv: igvRounded,
+        total,
+        status: InvoiceStatus.ACCEPTED, // Simulate immediate acceptance (no SUNAT call)
+        issueDate: new Date(),
+        sentAt: new Date(), // Mark as sent immediately
+        acceptedAt: new Date(), // Mark as accepted immediately
+        sunatResponse: JSON.stringify({
+          message: 'Invoice generated locally without SUNAT integration',
+          mode: 'local-simulation',
+        }),
+      });
+
+      const savedInvoice = await queryRunner.manager.save(Invoice, invoice);
+
+      // 9. Update folio charges with the invoice ID (mark as invoiced)
+      for (const charge of folioCharges) {
+        charge.invoiceId = savedInvoice.id;
+        await queryRunner.manager.save(FolioCharge, charge);
+      }
+
+      // 10. Increment voucher series number
+      voucherSeries.currentNumber += 1;
+      await queryRunner.manager.save(TenantVoucherSeries, voucherSeries);
+
+      // 11. Increment tenant monthly invoice counter
+      tenant.currentMonthInvoiceCount += 1;
+      await queryRunner.manager.save(Tenant, tenant);
+
+      // 12. Commit transaction
+      await queryRunner.commitTransaction();
+
+      return savedInvoice;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   /**

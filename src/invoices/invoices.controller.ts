@@ -22,6 +22,7 @@ import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { GenerateInvoiceDto } from './dto/generate-invoice.dto';
+import { GenerateInvoiceWithoutSunatDto } from './dto/generate-invoice-without-sunat.dto';
 import { FilterInvoicesDto } from './dto/filter-invoices.dto';
 import { PaginatedInvoicesResponseDto } from './dto/paginated-invoices-response.dto';
 import { Invoice } from './entities/invoice.entity';
@@ -35,6 +36,37 @@ import {
 @Controller('invoices')
 export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
+
+  @Post('generate-without-sunat')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Generate invoice from folio WITHOUT SUNAT integration (local mode)',
+    description:
+      'Generates a local invoice (Factura or Boleta) from a closed folio WITHOUT sending to SUNAT. This is useful for demos, development, or while SUNAT integration is not active. The invoice is immediately marked as ACCEPTED and charges are marked as invoiced. All validations and business logic are applied except the SUNAT API call.',
+  })
+  @ApiBody({ type: GenerateInvoiceWithoutSunatDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Invoice successfully generated locally (no SUNAT)',
+    type: Invoice,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Folio not closed, missing charges, or validation error',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Folio, guest, or voucher series not found',
+  })
+  generateWithoutSunat(
+    @Body() dto: GenerateInvoiceWithoutSunatDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.invoicesService.generateFromFolioWithoutSunat(
+      dto,
+      user.tenantId,
+    );
+  }
 
   @Post('generate-from-folio')
   @HttpCode(HttpStatus.CREATED)
