@@ -110,6 +110,64 @@ export class NotificationsService {
   }
 
   /**
+   * Notificación de habitación limpia: envía a todos los MANAGER y RECEPTIONIST del tenant
+   */
+  async notifyRoomCleaned(
+    tenantId: number,
+    room: {
+      publicId: string;
+      roomNumber: string;
+      cleanedBy: string;
+      cleanedAt: Date;
+    },
+  ): Promise<Notification[]> {
+    // Obtener todos los usuarios con rol MANAGER o RECEPTIONIST del tenant que estén activos
+    const users = await this.userRepository.find({
+      where: [
+        { tenantId, role: UserRole.MANAGER, isActive: true },
+        { tenantId, role: UserRole.RECEPTIONIST, isActive: true },
+      ],
+    });
+
+    if (users.length === 0) {
+      this.logger.warn(
+        `No active managers/receptionists found for tenant ${tenantId}. Notification not sent.`,
+      );
+      return [];
+    }
+
+    const title = `Habitación ${room.roomNumber} limpia`;
+    const message = `La habitación ha sido limpiada y está lista para ocupación.`;
+
+    const metadata = {
+      roomPublicId: room.publicId,
+      roomNumber: room.roomNumber,
+      cleanedBy: room.cleanedBy,
+      cleanedAt: room.cleanedAt.toISOString(),
+    };
+
+    // Crear notificación para cada manager/receptionist
+    const notifications = await Promise.all(
+      users.map((user) =>
+        this.create(
+          tenantId,
+          user.id,
+          NotificationType.ROOM_CLEANED,
+          title,
+          message,
+          metadata,
+        ),
+      ),
+    );
+
+    this.logger.log(
+      `Created ${notifications.length} room cleaned notifications for tenant ${tenantId}, room ${room.roomNumber}`,
+    );
+
+    return notifications;
+  }
+
+  /**
    * Obtener notificaciones de un usuario (con filtro opcional de estado)
    */
   async findByUser(

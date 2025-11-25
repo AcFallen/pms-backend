@@ -2,14 +2,24 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateCleaningTaskDto } from './dto/create-cleaning-task.dto';
-import { UpdateCleaningTaskDto } from './dto/update-cleaning-task.dto';
 import { CleaningTask } from './entities/cleaning-task.entity';
+import { TaskStatus } from './enums/task-status.enum';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { Room } from '../rooms/entities/room.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class CleaningTasksService {
   constructor(
     @InjectRepository(CleaningTask)
     private readonly cleaningTaskRepository: Repository<CleaningTask>,
+    @InjectRepository(Room)
+    private readonly roomRepository: Repository<Room>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationsGateway: NotificationsGateway,
   ) {}
 
   async create(
@@ -58,18 +68,77 @@ export class CleaningTasksService {
     return cleaningTask;
   }
 
-  async update(
-    id: number,
-    updateCleaningTaskDto: UpdateCleaningTaskDto,
+  /**
+   * Start maintenance on a cleaning task
+   * Sets status to IN_PROGRESS and auto-assigns to current user
+   */
+  async startMaintenance(
+    publicId: string,
+    userId: number,
     tenantId: number,
   ): Promise<CleaningTask> {
-    const cleaningTask = await this.findOne(id, tenantId);
-    Object.assign(cleaningTask, updateCleaningTaskDto);
+    const cleaningTask = await this.findByPublicId(publicId, tenantId);
+
+    // Update task status and assign to current user
+    cleaningTask.status = TaskStatus.IN_PROGRESS;
+    cleaningTask.assignedTo = userId;
+    cleaningTask.startedAt = new Date();
+
     return await this.cleaningTaskRepository.save(cleaningTask);
   }
 
-  async remove(id: number, tenantId: number): Promise<void> {
-    const cleaningTask = await this.findOne(id, tenantId);
-    await this.cleaningTaskRepository.remove(cleaningTask);
+  /**
+   * Mark cleaning task as clean/completed
+   */
+  async markAsClean(publicId: string, tenantId: number): Promise<CleaningTask> {
+    const cleaningTask = await this.findByPublicId(publicId, tenantId);
+
+    // Update task status to completed
+    cleaningTask.status = TaskStatus.COMPLETED;
+    cleaningTask.completedAt = new Date();
+
+    const savedTask = await this.cleaningTaskRepository.save(cleaningTask);
+
+    // Get room information for notification
+    const room = await this.roomRepository.findOne({
+      where: { id: cleaningTask.roomId },
+      select: ['publicId', 'roomNumber'],
+    });
+
+    if (!room) {
+      throw new NotFoundException(
+        `Room with ID ${cleaningTask.roomId} not found`,
+      );
+    }
+
+    // Get user information (who cleaned the room)
+    let cleanedBy = 'Personal de limpieza';
+    if (cleaningTask.assignedTo) {
+      const user = await this.userRepository.findOne({
+        where: { id: cleaningTask.assignedTo },
+        select: ['firstName', 'lastName', 'email'],
+      });
+      if (user) {
+        cleanedBy = `${user.firstName} ${user.lastName}`.trim() || user.email;
+      }
+    }
+
+    // Create notifications for MANAGER and RECEPTIONIST
+    const notifications = await this.notificationsService.notifyRoomCleaned(
+      tenantId,
+      {
+        publicId: room.publicId,
+        roomNumber: room.roomNumber,
+        cleanedBy,
+        cleanedAt: cleaningTask.completedAt,
+      },
+    );
+
+    // Emit notifications via WebSocket to each user
+    for (const notification of notifications) {
+      this.notificationsGateway.emitToUser(notification.userId, notification);
+    }
+
+    return savedTask;
   }
 }

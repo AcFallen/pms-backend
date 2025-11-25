@@ -97,88 +97,59 @@ export class CleaningTasksController {
     return this.cleaningTasksService.findByPublicId(publicId, user.tenantId);
   }
 
-  @Get(':id')
+  @Patch('public/:publicId/start')
   @ApiOperation({
-    summary: 'Get cleaning task by internal ID',
-    description: 'Retrieves a cleaning task by its internal ID',
+    summary: 'Start maintenance on a cleaning task',
+    description:
+      'Sets task status to IN_PROGRESS and auto-assigns to current user',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the cleaning task',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    type: String,
+    description: 'Cleaning task public ID (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({
     status: 200,
-    description: 'Cleaning task found',
+    description: 'Task started successfully',
     type: CleaningTask,
   })
   @ApiResponse({
     status: 404,
     description: 'Cleaning task not found',
   })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.cleaningTasksService.findOne(+id, user.tenantId);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update cleaning task',
-    description: 'Updates cleaning task information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the cleaning task',
-    example: 1,
-    type: Number,
-  })
-  @ApiBody({ type: UpdateCleaningTaskDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Cleaning task successfully updated',
-    type: CleaningTask,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Validation error',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Cleaning task not found',
-  })
-  update(
-    @Param('id') id: string,
-    @Body() updateCleaningTaskDto: UpdateCleaningTaskDto,
+  startMaintenance(
+    @Param('publicId') publicId: string,
     @CurrentUser() user: any,
   ) {
-    return this.cleaningTasksService.update(
-      +id,
-      updateCleaningTaskDto,
+    return this.cleaningTasksService.startMaintenance(
+      publicId,
+      user.userId,
       user.tenantId,
     );
   }
 
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
+  @Patch('public/:publicId/complete')
   @ApiOperation({
-    summary: 'Delete cleaning task',
-    description: 'Deletes a cleaning task by internal ID',
+    summary: 'Mark cleaning task as clean/completed',
+    description: 'Sets task status to COMPLETED',
   })
   @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the cleaning task',
-    example: 1,
-    type: Number,
+    name: 'publicId',
+    type: String,
+    description: 'Cleaning task public ID (UUID)',
+    example: '550e8400-e29b-41d4-a716-446655440000',
   })
   @ApiResponse({
     status: 200,
-    description: 'Cleaning task successfully deleted',
+    description: 'Task completed successfully',
+    type: CleaningTask,
   })
   @ApiResponse({
     status: 404,
     description: 'Cleaning task not found',
   })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.cleaningTasksService.remove(+id, user.tenantId);
+  markAsClean(@Param('publicId') publicId: string, @CurrentUser() user: any) {
+    return this.cleaningTasksService.markAsClean(publicId, user.tenantId);
   }
 }
