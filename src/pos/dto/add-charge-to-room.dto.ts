@@ -54,7 +54,7 @@ export class AddChargeToRoomDto {
   quantity: number;
 
   @ApiProperty({
-    description: 'Unit price (including IGV)',
+    description: 'Unit price (including IGV/tax)',
     example: 50.0,
     minimum: 0.01,
   })

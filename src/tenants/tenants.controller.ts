@@ -52,58 +52,6 @@ export class TenantsController {
     summary: 'Create a new tenant (Admin only)',
     description: 'Creates a new tenant organization with optional logo upload',
   })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', example: 'Hotel Paradise' },
-        ruc: { type: 'string', example: '20123456789' },
-        businessName: { type: 'string', example: 'Hotel Paradise S.A.C.' },
-        email: { type: 'string', example: 'contact@hotelparadise.com' },
-        phone: { type: 'string', example: '+51987654321' },
-        address: { type: 'string', example: 'Av. Principal 123' },
-        district: { type: 'string', example: 'Miraflores' },
-        province: { type: 'string', example: 'Lima' },
-        department: { type: 'string', example: 'Lima' },
-        status: { type: 'string', enum: ['active', 'inactive', 'suspended'] },
-        plan: { type: 'string', enum: ['basico', 'profesional', 'premium'] },
-        maxRooms: { type: 'number', example: 10 },
-        billingMode: {
-          type: 'string',
-          enum: ['fixed_price', 'minimum_price'],
-          description:
-            'Modo de facturación: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
-          example: 'fixed_price',
-        },
-        checkoutPolicy: {
-          type: 'string',
-          enum: ['fixed_time', 'flexible_24h'],
-          description:
-            'Política de checkout: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
-          example: 'fixed_time',
-        },
-        checkoutTime: {
-          type: 'string',
-          pattern: '^([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)$',
-          description:
-            'Hora de checkout (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
-          example: '12:00:00',
-        },
-        lateCheckoutFee: {
-          type: 'string',
-          pattern: '^\\d+\\.\\d{2}$',
-          description: 'Cargo adicional por checkout tardío',
-          example: '20.00',
-        },
-        logo: {
-          type: 'string',
-          format: 'binary',
-          description: 'Hotel logo (PNG, JPG, WEBP - Max 2MB)',
-        },
-      },
-      required: ['name', 'email'],
-    },
-  })
   @ApiResponse({
     status: 201,
     description: 'Tenant successfully created',
@@ -234,54 +182,6 @@ export class TenantsController {
     summary: 'Update current tenant profile',
     description:
       'Updates tenant information for the authenticated user with optional logo upload',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string', example: 'Hotel Paradise' },
-        ruc: { type: 'string', example: '20123456789' },
-        businessName: { type: 'string', example: 'Hotel Paradise S.A.C.' },
-        email: { type: 'string', example: 'contact@hotelparadise.com' },
-        phone: { type: 'string', example: '+51987654321' },
-        address: { type: 'string', example: 'Av. Principal 123' },
-        district: { type: 'string', example: 'Miraflores' },
-        province: { type: 'string', example: 'Lima' },
-        department: { type: 'string', example: 'Lima' },
-        billingMode: {
-          type: 'string',
-          enum: ['fixed_price', 'minimum_price'],
-          description:
-            'Modo de facturación: fixed_price (precio fijo) o minimum_price (precio mínimo flexible)',
-          example: 'fixed_price',
-        },
-        checkoutPolicy: {
-          type: 'string',
-          enum: ['fixed_time', 'flexible_24h'],
-          description:
-            'Política de checkout: fixed_time (hora fija) o flexible_24h (24 horas desde check-in)',
-          example: 'fixed_time',
-        },
-        checkoutTime: {
-          type: 'string',
-          pattern: '^([01]\\d|2[0-3]):([0-5]\\d):([0-5]\\d)$',
-          description:
-            'Hora de checkout (formato HH:mm:ss, solo si checkoutPolicy es fixed_time)',
-          example: '12:00:00',
-        },
-        lateCheckoutFee: {
-          type: 'string',
-          pattern: '^\\d+\\.\\d{2}$',
-          description: 'Cargo adicional por checkout tardío',
-          example: '20.00',
-        },
-        logo: {
-          type: 'string',
-          format: 'binary',
-          description: 'Hotel logo (PNG, JPG, WEBP - Max 2MB)',
-        },
-      },
-    },
   })
   @ApiResponse({
     status: 200,

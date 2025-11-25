@@ -10,6 +10,7 @@ import { Folio } from '../folios/entities/folio.entity';
 import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Invoice } from '../invoices/entities/invoice.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
@@ -23,6 +24,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       FolioCharge,
       Payment,
       Invoice,
+      Tenant,
     ]),
     NotificationsModule,
   ],

@@ -16,6 +16,7 @@ import { TenantStatus } from '../enums/tenant-status.enum';
 import { TenantPlan } from '../enums/tenant-plan.enum';
 import { BillingMode } from '../enums/billing-mode.enum';
 import { CheckoutPolicy } from '../enums/checkout-policy.enum';
+import { Transform } from 'class-transformer';
 
 export class CreateTenantDto {
   @ApiProperty({
@@ -148,7 +149,8 @@ export class CreateTenantDto {
   maxRooms?: number;
 
   @ApiProperty({
-    description: 'Maximum number of invoices (facturas/boletas) allowed per month',
+    description:
+      'Maximum number of invoices (facturas/boletas) allowed per month',
     example: 100,
     default: 100,
     minimum: 1,
@@ -206,6 +208,20 @@ export class CreateTenantDto {
   @IsOptional()
   @IsDecimal({ decimal_digits: '2' })
   lateCheckoutFee?: string;
+
+  @ApiProperty({
+    description: 'Porcentaje de IGV a aplicar (18.00 = 18%)',
+    example: 18.0,
+    default: 18.0,
+    minimum: 0,
+    maximum: 100,
+    required: false,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Transform(({ value }) => parseFloat(value))
+  @Min(0)
+  taxRate?: number;
 
   // Logo fields are managed via file upload, not through DTO
   logoUrl?: string;

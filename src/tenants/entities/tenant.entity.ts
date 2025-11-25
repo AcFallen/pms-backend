@@ -135,6 +135,17 @@ export class Tenant {
   })
   lateCheckoutFee: string | null;
 
+  // Configuración de impuestos
+  @Column({
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: false,
+    default: 18.0,
+    comment: 'Porcentaje de IGV a aplicar (18.00 = 18%)',
+  })
+  taxRate: number;
+
   @Column({ type: 'varchar', length: 500, nullable: true })
   logoUrl: string | null;
 

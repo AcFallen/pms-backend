@@ -10,9 +10,7 @@ import { FolioCharge } from '../folio-charges/entities/folio-charge.entity';
 import { Product } from '../products/entities/product.entity';
 import { Payment } from '../payments/entities/payment.entity';
 import { Reservation } from '../reservations/entities/reservation.entity';
-import { Room } from '../rooms/entities/room.entity';
-import { Guest } from '../guests/entities/guest.entity';
-import { RoomType } from '../room-types/entities/room-type.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 import { FolioStatus } from '../folios/enums/folio-status.enum';
 import { ReservationStatus } from '../reservations/enums/reservation-status.enum';
 import { CreateWalkInSaleDto } from './dto/create-walk-in-sale.dto';
@@ -30,8 +28,39 @@ export class PosService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepository: Repository<Tenant>,
     private readonly dataSource: DataSource,
   ) {}
+
+  /**
+   * Helper method to extract tax from total amount (price includes tax)
+   * @param total Total amount WITH tax included
+   * @param taxRate Tax rate percentage (e.g., 18.00 for 18%)
+   * @returns Object with subtotal, tax, and total
+   */
+  private calculateTaxFromTotal(
+    total: number,
+    taxRate: number,
+  ): { subtotal: number; tax: number; total: number } {
+    if (taxRate === 0) {
+      return {
+        subtotal: total,
+        tax: 0,
+        total,
+      };
+    }
+
+    const divisor = 1 + taxRate / 100;
+    const subtotal = total / divisor;
+    const tax = total - subtotal;
+
+    return {
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      total,
+    };
+  }
 
   /**
    * Create a walk-in sale (folio without reservation + charge + payment)
@@ -74,25 +103,33 @@ export class PosService {
         productId = product.id;
       }
 
-      // 2. Calculate total (quantity * unitPrice)
+      // 2. Get tenant configuration for tax calculation
+      const tenant = await queryRunner.manager.findOne(Tenant, {
+        where: { id: tenantId },
+        select: ['id', 'taxRate'],
+      });
+      if (!tenant) {
+        throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+      }
+
+      // 3. Calculate total (quantity * unitPrice - price includes tax)
       const total = dto.quantity * dto.unitPrice;
 
-      // Calculate subtotal and tax (IGV 18%)
-      const subtotal = total / 1.18;
-      const tax = total - subtotal;
+      // Extract subtotal and tax from total
+      const { subtotal, tax } = this.calculateTaxFromTotal(total, tenant.taxRate);
 
-      // 3. Generate unique folio number
+      // 4. Generate unique folio number
       const folioNumber = await this.generateFolioNumber(tenantId);
 
-      // 4. Create folio WITHOUT reservation (walk-in folio)
+      // 5. Create folio WITHOUT reservation (walk-in folio)
       const folio = queryRunner.manager.create(Folio, {
         tenantId,
         reservationId: null, // Walk-in folio (no reservation)
         folioNumber,
         status: FolioStatus.CLOSED, // Immediately closed since payment is made
-        subtotal: parseFloat(subtotal.toFixed(2)),
-        tax: parseFloat(tax.toFixed(2)),
-        total: parseFloat(total.toFixed(2)),
+        subtotal,
+        tax,
+        total,
         balance: 0, // Balance is 0 after payment
         notes: dto.notes || 'Walk-in POS sale',
       });
@@ -108,7 +145,7 @@ export class PosService {
         description: dto.description,
         quantity: dto.quantity,
         unitPrice: dto.unitPrice,
-        total: parseFloat(total.toFixed(2)),
+        total,
         includedInInvoice: true, // Default: included in invoice
         chargeDate: new Date(),
       });
@@ -240,10 +277,23 @@ export class PosService {
         productId = product.id;
       }
 
-      // 6. Calculate total
+      // 6. Get tenant configuration for tax calculation
+      const tenant = await queryRunner.manager.findOne(Tenant, {
+        where: { id: tenantId },
+        select: ['id', 'taxRate'],
+      });
+      if (!tenant) {
+        throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+      }
+
+      // 7. Calculate total (price includes tax)
       const total = dto.quantity * dto.unitPrice;
 
-      // 7. Create folio charge
+      // Extract subtotal and tax from total
+      const { subtotal: chargeSubtotal, tax: chargeTax } =
+        this.calculateTaxFromTotal(total, tenant.taxRate);
+
+      // 8. Create folio charge
       const charge = queryRunner.manager.create(FolioCharge, {
         tenantId,
         folioId: folio.id,
@@ -259,16 +309,13 @@ export class PosService {
 
       const savedCharge = await queryRunner.manager.save(FolioCharge, charge);
 
-      // 8. Update product stock if applicable
+      // 9. Update product stock if applicable
       if (product && product.trackInventory) {
         product.stock -= dto.quantity;
         await queryRunner.manager.save(Product, product);
       }
 
-      // 9. Update folio totals
-      const chargeSubtotal = total / 1.18;
-      const chargeTax = total - chargeSubtotal;
-
+      // 10. Update folio totals
       folio.subtotal = parseFloat(
         (parseFloat(folio.subtotal.toString()) + chargeSubtotal).toFixed(2),
       );
@@ -284,7 +331,7 @@ export class PosService {
 
       await queryRunner.manager.save(Folio, folio);
 
-      // 10. Update reservation totalAmount
+      // 11. Update reservation totalAmount
       reservation.totalAmount = (
         parseFloat(reservation.totalAmount.toString()) + total
       ).toFixed(2);

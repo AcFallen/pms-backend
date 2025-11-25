@@ -10,6 +10,7 @@ import { Reservation } from '../reservations/entities/reservation.entity';
 import { Room } from '../rooms/entities/room.entity';
 import { Guest } from '../guests/entities/guest.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RoomType } from '../room-types/entities/room-type.entity';
       Room,
       Guest,
       RoomType,
+      Tenant,
     ]),
   ],
   controllers: [PosController],

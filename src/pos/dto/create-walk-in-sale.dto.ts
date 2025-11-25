@@ -47,7 +47,7 @@ export class CreateWalkInSaleDto {
   quantity: number;
 
   @ApiProperty({
-    description: 'Unit price (including IGV)',
+    description: 'Unit price (including IGV/tax)',
     example: 3.0,
     minimum: 0.01,
   })

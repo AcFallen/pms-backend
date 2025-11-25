@@ -38,6 +38,7 @@ import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { Tenant } from '../tenants/entities/tenant.entity';
 
 @Injectable()
 export class ReservationsService {
@@ -58,10 +59,41 @@ export class ReservationsService {
     private readonly paymentRepository: Repository<Payment>,
     @InjectRepository(Invoice)
     private readonly invoiceRepository: Repository<Invoice>,
+    @InjectRepository(Tenant)
+    private readonly tenantRepository: Repository<Tenant>,
     private readonly dataSource: DataSource,
     private readonly notificationsService: NotificationsService,
     private readonly notificationsGateway: NotificationsGateway,
   ) {}
+
+  /**
+   * Helper method to extract tax from total amount (price includes tax)
+   * @param total Total amount WITH tax included
+   * @param taxRate Tax rate percentage (e.g., 18.00 for 18%)
+   * @returns Object with subtotal, tax, and total
+   */
+  private calculateTaxFromTotal(
+    total: number,
+    taxRate: number,
+  ): { subtotal: number; tax: number; total: number } {
+    if (taxRate === 0) {
+      return {
+        subtotal: total,
+        tax: 0,
+        total,
+      };
+    }
+
+    const divisor = 1 + taxRate / 100;
+    const subtotal = total / divisor;
+    const tax = total - subtotal;
+
+    return {
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      tax: parseFloat(tax.toFixed(2)),
+      total,
+    };
+  }
 
   async create(
     createReservationDto: CreateReservationDto,
@@ -179,26 +211,34 @@ export class ReservationsService {
         reservation,
       );
 
+      // Get tenant configuration for tax calculation
+      const tenant = await queryRunner.manager.findOne(Tenant, {
+        where: { id: tenantId },
+        select: ['id', 'taxRate'],
+      });
+      if (!tenant) {
+        throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+      }
+
       // Generate folio number
       const folioNumber = await this.generateFolioNumber(queryRunner, tenantId);
 
-      // Create folio for the reservation
-      const folioTotalConIGV = parseFloat(
-        createReservationDto.totalAmount.toString(),
-      );
-      // Calcular subtotal sin IGV y el IGV (sin redondear intermedios para evitar errores de redondeo)
-      const folioSubtotalSinIGV = folioTotalConIGV / 1.18;
-      const folioTax = folioTotalConIGV - folioSubtotalSinIGV;
+      // Create folio for the reservation (price includes tax)
+      const folioTotal = parseFloat(createReservationDto.totalAmount.toString());
+
+      // Extract subtotal and tax from total
+      const { subtotal: folioSubtotal, tax: folioTax } =
+        this.calculateTaxFromTotal(folioTotal, tenant.taxRate);
 
       const folio = new Folio();
       folio.tenantId = tenantId;
       folio.reservationId = savedReservation.id;
       folio.folioNumber = folioNumber;
       folio.status = FolioStatus.OPEN;
-      folio.subtotal = parseFloat(folioSubtotalSinIGV.toFixed(2)); // Sin IGV
-      folio.tax = parseFloat(folioTax.toFixed(2)); // IGV 18%
-      folio.total = folioTotalConIGV; // Con IGV (usar el valor original)
-      folio.balance = folioTotalConIGV;
+      folio.subtotal = folioSubtotal; // Subtotal without tax
+      folio.tax = folioTax; // Tax based on tenant's taxRate
+      folio.total = folioTotal; // Total with tax
+      folio.balance = folioTotal;
       folio.notes = null;
 
       const savedFolio = await queryRunner.manager.save(folio);
@@ -215,7 +255,7 @@ export class ReservationsService {
           ? `${hours} hora(s) - Habitación ${room.roomNumber} (${roomType.name})`
           : `${hours} hora(s) - ${roomType.name}`;
         quantity = hours;
-        unitPriceConIGV = parseFloat((folioTotalConIGV / hours).toFixed(2));
+        unitPriceConIGV = parseFloat((folioTotal / hours).toFixed(2));
       } else {
         // Nightly reservation
         const nightsValue = nights!; // Non-null assertion since we set it above
@@ -223,9 +263,7 @@ export class ReservationsService {
           ? `${nightsValue} noche(s) - Habitación ${room.roomNumber} (${roomType.name})`
           : `${nightsValue} noche(s) - ${roomType.name}`;
         quantity = nightsValue;
-        unitPriceConIGV = parseFloat(
-          (folioTotalConIGV / nightsValue).toFixed(2),
-        );
+        unitPriceConIGV = parseFloat((folioTotal / nightsValue).toFixed(2));
       }
 
       const folioCharge = queryRunner.manager.create(FolioCharge, {
@@ -235,8 +273,8 @@ export class ReservationsService {
         productId: null,
         description: roomDescription,
         quantity,
-        unitPrice: unitPriceConIGV, // Precio CON IGV incluido
-        total: folioTotalConIGV, // Total CON IGV incluido
+        unitPrice: unitPriceConIGV, // Price with tax included
+        total: folioTotal, // Total with tax included
         chargeDate: new Date(),
       });
 
