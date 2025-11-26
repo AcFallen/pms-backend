@@ -8,6 +8,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { Room } from '../rooms/entities/room.entity';
 import { User } from '../users/entities/user.entity';
+import { CleaningStatus } from '../rooms/enums/cleaning-status.enum';
 
 @Injectable()
 export class CleaningTasksService {
@@ -99,10 +100,9 @@ export class CleaningTasksService {
 
     const savedTask = await this.cleaningTaskRepository.save(cleaningTask);
 
-    // Get room information for notification
+    // Get room information for notification and update cleaning status
     const room = await this.roomRepository.findOne({
       where: { id: cleaningTask.roomId },
-      select: ['publicId', 'roomNumber'],
     });
 
     if (!room) {
@@ -110,6 +110,10 @@ export class CleaningTasksService {
         `Room with ID ${cleaningTask.roomId} not found`,
       );
     }
+
+    // Update room cleaning status to CLEAN
+    room.cleaningStatus = CleaningStatus.CLEAN;
+    await this.roomRepository.save(room);
 
     // Get user information (who cleaned the room)
     let cleanedBy = 'Personal de limpieza';
