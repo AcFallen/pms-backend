@@ -39,6 +39,7 @@ import { toZonedTime } from 'date-fns-tz';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { Tenant } from '../tenants/entities/tenant.entity';
+import { VehicleType } from './enums/vehicle-type.enum';
 
 @Injectable()
 export class ReservationsService {
@@ -900,6 +901,7 @@ export class ReservationsService {
       { key: 'boleta', width: 18 },
       { key: 'obs', width: 20 },
       { key: 'pos', width: 30 },
+      { key: 'cochera', width: 12 },
     ];
 
     // Configurar encabezado de columnas (se aplicará después de cada encabezado de día)
@@ -917,6 +919,7 @@ export class ReservationsService {
       'Boleta',
       'OBS',
       'POS',
+      'Cochera',
     ];
 
     let currentRow = 1;
@@ -967,11 +970,11 @@ export class ReservationsService {
         vertical: 'middle',
       };
 
-      // Merge cells para el encabezado del día (A-M)
-      worksheet.mergeCells(currentRow, 1, currentRow, 13);
+      // Merge cells para el encabezado del día (A-N)
+      worksheet.mergeCells(currentRow, 1, currentRow, 14);
 
       // Aplicar bordes al encabezado del día
-      for (let col = 1; col <= 13; col++) {
+      for (let col = 1; col <= 14; col++) {
         dayHeaderRow.getCell(col).border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
           left: { style: 'thin', color: { argb: 'FF000000' } },
@@ -1234,6 +1237,12 @@ export class ReservationsService {
         }
         const pos = posDescriptions.join(' | ');
 
+        // Cochera: Mostrar tipo de vehículo si usó cochera
+        let cochera = '';
+        if (reservation.hasGarage && reservation.vehicleType) {
+          cochera = reservation.vehicleType === VehicleType.CAR ? 'Carro' : 'Moto';
+        }
+
         // Asignar valores a las celdas
         const rowData = [
           fechaFormat,
@@ -1249,6 +1258,7 @@ export class ReservationsService {
           boleta,
           obs,
           pos,
+          cochera,
         ];
 
         rowData.forEach((value, idx) => {
@@ -1320,8 +1330,8 @@ export class ReservationsService {
         fgColor: { argb: 'FFE7E6E6' },
       };
 
-      // Aplicar bordes a la fila de total y extender el color gris hasta la columna M
-      for (let col = 1; col <= 13; col++) {
+      // Aplicar bordes a la fila de total y extender el color gris hasta la columna N
+      for (let col = 1; col <= 14; col++) {
         const cell = totalRow.getCell(col);
         cell.border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
@@ -1329,7 +1339,7 @@ export class ReservationsService {
           bottom: { style: 'thin', color: { argb: 'FF000000' } },
           right: { style: 'thin', color: { argb: 'FF000000' } },
         };
-        // Aplicar color gris a todas las columnas de la fila de total (A-M)
+        // Aplicar color gris a todas las columnas de la fila de total (A-N)
         cell.fill = {
           type: 'pattern',
           pattern: 'solid',
