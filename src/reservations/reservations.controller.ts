@@ -214,71 +214,6 @@ export class ReservationsController {
     );
   }
 
-  @Get(':id')
-  @ApiOperation({
-    summary: 'Get reservation by internal ID',
-    description: 'Retrieves a reservation by its internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the reservation',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Reservation found',
-    type: Reservation,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Reservation not found',
-  })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.reservationsService.findOne(+id, user.tenantId);
-  }
-
-  @Patch(':id')
-  @ApiOperation({
-    summary: 'Update reservation',
-    description: 'Updates reservation information by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the reservation',
-    example: 1,
-    type: Number,
-  })
-  @ApiBody({ type: UpdateReservationDto })
-  @ApiResponse({
-    status: 200,
-    description: 'Reservation successfully updated',
-    type: Reservation,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Validation error',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Reservation not found',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'Reservation code already exists',
-  })
-  update(
-    @Param('id') id: string,
-    @Body() updateReservationDto: UpdateReservationDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.reservationsService.update(
-      +id,
-      updateReservationDto,
-      user.tenantId,
-    );
-  }
-
   @Post(':publicId/checkout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -313,29 +248,5 @@ export class ReservationsController {
     @CurrentUser() user: CurrentUserData,
   ) {
     return this.reservationsService.checkout(publicId, user.tenantId, dto);
-  }
-
-  @Delete(':id')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Delete reservation',
-    description: 'Deletes a reservation by internal ID',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Internal ID of the reservation',
-    example: 1,
-    type: Number,
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Reservation successfully deleted',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Reservation not found',
-  })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.reservationsService.remove(+id, user.tenantId);
   }
 }

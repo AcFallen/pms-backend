@@ -481,16 +481,7 @@ export class ReservationsService {
     };
   }
 
-  async findOne(id: number, tenantId: number): Promise<Reservation> {
-    const reservation = await this.reservationRepository.findOne({
-      where: { id, tenantId },
-      relations: ['guest', 'room', 'roomType'],
-    });
-    if (!reservation) {
-      throw new NotFoundException(`Reservation with ID ${id} not found`);
-    }
-    return reservation;
-  }
+
 
   async findByPublicId(publicId: string, tenantId: number): Promise<any> {
     const reservation = await this.reservationRepository
@@ -606,90 +597,6 @@ export class ReservationsService {
     return reservation;
   }
 
-  async update(
-    id: number,
-    updateReservationDto: UpdateReservationDto,
-    tenantId: number,
-  ): Promise<Reservation> {
-    const reservation = await this.findOne(id, tenantId);
-
-    // Check if reservation code is being updated and if it already exists
-    if (
-      updateReservationDto.reservationCode &&
-      updateReservationDto.reservationCode !== reservation.reservationCode
-    ) {
-      const existingReservation = await this.reservationRepository.findOne({
-        where: {
-          reservationCode: updateReservationDto.reservationCode,
-          tenantId,
-        },
-      });
-      if (existingReservation) {
-        throw new ConflictException(
-          `Reservation code ${updateReservationDto.reservationCode} already exists`,
-        );
-      }
-    }
-
-    const oldStatus = reservation.status;
-    const oldRoomId = reservation.roomId;
-
-    Object.assign(reservation, updateReservationDto);
-
-    // Set checkInTime if status is changing to CHECKED_IN
-    if (
-      updateReservationDto.status === ReservationStatus.CHECKED_IN &&
-      oldStatus !== ReservationStatus.CHECKED_IN
-    ) {
-      reservation.checkInTime = new Date();
-    }
-
-    // Set checkOutTime if status is changing to CHECKED_OUT
-    if (
-      updateReservationDto.status === ReservationStatus.CHECKED_OUT &&
-      oldStatus !== ReservationStatus.CHECKED_OUT
-    ) {
-      reservation.checkOutTime = new Date();
-    }
-
-    const updatedReservation =
-      await this.reservationRepository.save(reservation);
-
-    // Handle room status changes when reservation status changes
-    const newStatus = updatedReservation.status;
-    const newRoomId = updatedReservation.roomId;
-
-    // Update room to OCCUPIED if status changed to CHECKED_IN and room is assigned
-    if (
-      newStatus === ReservationStatus.CHECKED_IN &&
-      oldStatus !== ReservationStatus.CHECKED_IN &&
-      newRoomId
-    ) {
-      await this.roomRepository.update(
-        { id: newRoomId, tenantId },
-        { status: RoomStatus.OCCUPIED },
-      );
-    }
-
-    // Update room to AVAILABLE if status changed from CHECKED_IN to CHECKED_OUT
-    if (
-      newStatus === ReservationStatus.CHECKED_OUT &&
-      oldStatus === ReservationStatus.CHECKED_IN &&
-      oldRoomId
-    ) {
-      await this.roomRepository.update(
-        { id: oldRoomId, tenantId },
-        { status: RoomStatus.AVAILABLE },
-      );
-    }
-
-    return updatedReservation;
-  }
-
-  async remove(id: number, tenantId: number): Promise<void> {
-    const reservation = await this.findOne(id, tenantId);
-    await this.reservationRepository.remove(reservation);
-  }
 
   async findForCalendar(
     filterDto: FilterCalendarReservationsDto,
