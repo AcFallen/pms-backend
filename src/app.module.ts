@@ -46,7 +46,7 @@ import { NotificationsModule } from './notifications/notifications.module';
         database: configService.get('DB_DATABASE'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
-
+        // dropSchema: true,
         // logging: configService.get('NODE_ENV') === 'development',
       }),
     }),
