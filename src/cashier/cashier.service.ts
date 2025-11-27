@@ -208,6 +208,7 @@ export class CashierService {
 
   /**
    * Calculate sales breakdown for a session
+   * Differentiates between room charges and POS sales based on charge types
    */
   private async calculateSalesBreakdown(
     sessionOpenedAt: Date,
@@ -216,11 +217,11 @@ export class CashierService {
   ): Promise<{ reservationSales: number; posSales: number }> {
     const endDate = sessionClosedAt || new Date();
 
-    // Get all cash payments during the session with folio relations
+    // Get all cash payments during the session with folio and charges relations
     const cashPayments = await this.paymentRepository
       .createQueryBuilder('payment')
       .leftJoinAndSelect('payment.folio', 'folio')
-      .leftJoinAndSelect('folio.reservation', 'reservation')
+      .leftJoinAndSelect('folio.folioCharges', 'charges')
       .where('payment.tenantId = :tenantId', { tenantId })
       .andWhere('payment.paymentMethod = :paymentMethod', {
         paymentMethod: PaymentMethod.CASH,
@@ -235,13 +236,39 @@ export class CashierService {
     let posSales = 0;
 
     cashPayments.forEach((payment) => {
-      const amount = parseFloat(payment.amount.toString());
-      // If payment has a folio with a reservation, it's reservation sales
-      if (payment.folio && payment.folio.reservation) {
-        reservationSales += amount;
+      if (!payment.folio || !payment.folio.folioCharges) {
+        // If no folio or charges, treat as POS sale
+        posSales += parseFloat(payment.amount.toString());
+        return;
+      }
+
+      const paymentAmount = parseFloat(payment.amount.toString());
+      const folioTotal = parseFloat(payment.folio.total.toString());
+
+      // Calculate proportions based on charge types
+      let roomChargesTotal = 0;
+      let posChargesTotal = 0;
+
+      payment.folio.folioCharges.forEach((charge) => {
+        const chargeAmount = parseFloat(charge.total.toString());
+        if (charge.chargeType === 'room') {
+          roomChargesTotal += chargeAmount;
+        } else {
+          // product, service, extra are all POS sales
+          posChargesTotal += chargeAmount;
+        }
+      });
+
+      // Distribute payment proportionally
+      if (folioTotal > 0) {
+        const roomProportion = roomChargesTotal / folioTotal;
+        const posProportion = posChargesTotal / folioTotal;
+
+        reservationSales += paymentAmount * roomProportion;
+        posSales += paymentAmount * posProportion;
       } else {
-        // Otherwise it's POS sales (products, services, etc.)
-        posSales += amount;
+        // If total is 0, treat entire payment as POS sale
+        posSales += paymentAmount;
       }
     });
 
