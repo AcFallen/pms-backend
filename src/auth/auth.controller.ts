@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards, Request, Get } from '@nestjs/common';
+import { Controller, Post, UseGuards, Request, Get, Body } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -11,6 +11,8 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { Public } from './decorators/public.decorator';
 import { LoginDto } from './dto/login.dto';
 import { LoginResponseDto } from './dto/login-response.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { RefreshResponseDto } from './dto/refresh-response.dto';
 import {
   CurrentUser,
   CurrentUserData,
@@ -46,5 +48,34 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@CurrentUser() user: CurrentUserData) {
     return user;
+  }
+
+  @Public()
+  @Post('refresh')
+  @ApiOperation({ summary: 'Refresh access token' })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Token refreshed successfully',
+    type: RefreshResponseDto,
+  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto,
+  ): Promise<RefreshResponseDto> {
+    return this.authService.refresh(refreshTokenDto.refresh_token);
+  }
+
+  @Public()
+  @Post('logout')
+  @ApiOperation({ summary: 'Logout (revoke refresh token)' })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Logged out successfully',
+  })
+  async logout(@Body() refreshTokenDto: RefreshTokenDto): Promise<{ message: string }> {
+    await this.authService.logout(refreshTokenDto.refresh_token);
+    return { message: 'Logged out successfully' };
   }
 }

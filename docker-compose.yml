@@ -10,7 +10,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
       POSTGRES_DB: ${DB_DATABASE:-pms_db}
     ports:
-      - '${DB_PORT:-5435}:5432'
+      - '${DB_PORT:-5432}:5432'
     volumes:
       - pms-postgres-data:/var/lib/postgresql/data
     healthcheck:
