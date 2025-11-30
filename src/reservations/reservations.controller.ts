@@ -26,6 +26,7 @@ import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { CheckoutReservationDto } from './dto/checkout-reservation.dto';
+import { AdjustReservationAmountDto } from './dto/adjust-reservation-amount.dto';
 import { FilterCalendarReservationsDto } from './dto/filter-calendar-reservations.dto';
 import { CalendarReservationResponseDto } from './dto/calendar-reservation-response.dto';
 import { FilterReservationsDto } from './dto/filter-reservations.dto';
@@ -211,6 +212,46 @@ export class ReservationsController {
     return this.reservationsService.findByReservationCode(
       reservationCode,
       user.tenantId,
+    );
+  }
+
+  @Post(':publicId/adjust-amount')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Adjust reservation amount',
+    description:
+      'Adjusts the total amount of a reservation and updates the associated folio. Used for late checkout, room extensions, or rate adjustments. If the folio is closed, it will be reopened automatically. The room charge is modified to reflect the new amount, and folio balance is recalculated considering any existing payments. Automatic notes in Spanish are added to the folio record.',
+  })
+  @ApiParam({
+    name: 'publicId',
+    description: 'Public UUID of the reservation',
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    type: String,
+  })
+  @ApiBody({ type: AdjustReservationAmountDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Reservation amount successfully adjusted',
+    type: Reservation,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Validation error (not checked in, amount less than current, etc.)',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Reservation not found',
+  })
+  adjustAmount(
+    @Param('publicId') publicId: string,
+    @Body() dto: AdjustReservationAmountDto,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.reservationsService.adjustReservationAmount(
+      publicId,
+      user.tenantId,
+      dto,
     );
   }
 

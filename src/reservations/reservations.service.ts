@@ -1360,6 +1360,193 @@ export class ReservationsService {
   }
 
   /**
+   * Adjusts the total amount of a reservation and updates the associated folio.
+   * This is used for late checkout, room extensions, or rate adjustments.
+   *
+   * IMPORTANT: Handles payment preservation correctly:
+   * - If folio was CLOSED (fully paid): Only charges the DIFFERENCE to the guest
+   * - If folio was OPEN: Adds the difference to the existing balance
+   *
+   * This method:
+   * 1. Validates reservation exists and is in CHECKED_IN status
+   * 2. Validates new amount is >= current amount
+   * 3. Gets the folio and the ROOM charge
+   * 4. Calculates the difference (new - old)
+   * 5. Updates the ROOM charge with new amount
+   * 6. Recalculates folio totals (subtotal, tax, total)
+   * 7. Recalculates balance:
+   *    - If folio was CLOSED: balance = difference (guest already paid original amount)
+   *    - If folio was OPEN: balance = old_balance + difference
+   * 8. If folio was CLOSED, reopens it (removes closedAt)
+   * 9. Updates reservation totalAmount
+   *
+   * All operations are performed in a transaction to ensure data consistency.
+   */
+  async adjustReservationAmount(
+    publicId: string,
+    tenantId: number,
+    dto: any, // AdjustReservationAmountDto
+  ): Promise<Reservation> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Find reservation with folio and room info
+      const reservation = await queryRunner.manager.findOne(Reservation, {
+        where: { publicId, tenantId },
+        relations: ['folios'],
+      });
+
+      if (!reservation) {
+        throw new NotFoundException(
+          `Reservation with publicId ${publicId} not found`,
+        );
+      }
+
+      // 2. Validate reservation status
+      if (reservation.status !== ReservationStatus.CHECKED_IN) {
+        throw new BadRequestException(
+          `Cannot adjust amount for reservation ${reservation.reservationCode}. Current status is ${reservation.status}. Only CHECKED_IN reservations can be adjusted.`,
+        );
+      }
+
+      // 3. Validate reservation has folio
+      if (!reservation.folios || reservation.folios.length === 0) {
+        throw new BadRequestException(
+          `Cannot adjust reservation ${reservation.reservationCode}. No folio found.`,
+        );
+      }
+
+      const folio = reservation.folios[0];
+
+      // 4. Validate new amount is not less than current amount
+      const currentAmount = parseFloat(reservation.totalAmount.toString());
+      const newAmount = dto.newTotalAmount;
+
+      if (newAmount < currentAmount) {
+        throw new BadRequestException(
+          `New amount (${newAmount}) cannot be less than current amount (${currentAmount}). Only increases are allowed.`,
+        );
+      }
+
+      if (newAmount === currentAmount) {
+        throw new BadRequestException(
+          `New amount is the same as current amount. No adjustment needed.`,
+        );
+      }
+
+      // 5. Calculate the difference
+      const amountDifference = newAmount - currentAmount;
+
+      // 6. Find the ROOM charge in the folio
+      const roomCharge = await queryRunner.manager.findOne(FolioCharge, {
+        where: {
+          folioId: folio.id,
+          chargeType: ChargeType.ROOM,
+          tenantId,
+        },
+      });
+
+      if (!roomCharge) {
+        throw new BadRequestException(
+          `No room charge found in folio ${folio.folioNumber}.`,
+        );
+      }
+
+      // 7. Get tenant for tax calculations
+      const tenant = await queryRunner.manager.findOne(Tenant, {
+        where: { id: tenantId },
+        select: ['id', 'taxRate'],
+      });
+
+      if (!tenant) {
+        throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+      }
+
+      // 8. Update the ROOM charge
+      const oldChargeTotal = parseFloat(roomCharge.total.toString());
+      const newChargeTotal = oldChargeTotal + amountDifference;
+
+      // Recalculate unit price based on quantity
+      const quantity = parseFloat(roomCharge.quantity.toString());
+      const newUnitPrice = parseFloat((newChargeTotal / quantity).toFixed(2));
+
+      // Update description to indicate adjustment if reason provided
+      let updatedDescription = roomCharge.description;
+      if (dto.adjustmentReason) {
+        updatedDescription += ` [${dto.adjustmentReason}]`;
+      }
+
+      await queryRunner.manager.update(
+        FolioCharge,
+        { id: roomCharge.id },
+        {
+          unitPrice: newUnitPrice,
+          total: newChargeTotal,
+          description: updatedDescription,
+        },
+      );
+
+      // 9. Calculate new folio totals
+      const oldFolioTotal = parseFloat(folio.total.toString());
+      const newFolioTotal = oldFolioTotal + amountDifference;
+
+      // Extract subtotal and tax from new total
+      const { subtotal: newSubtotal, tax: newTax } = this.calculateTaxFromTotal(
+        newFolioTotal,
+        tenant.taxRate,
+      );
+
+      // 10. Calculate new balance
+      // Important: If folio was CLOSED, the original amount was fully paid.
+      // Only the DIFFERENCE (new amount - old amount) should be charged to the guest.
+      // If folio was OPEN, add the difference to the existing balance.
+      const oldBalance = parseFloat(folio.balance.toString());
+      const newBalance =
+        folio.status === FolioStatus.CLOSED
+          ? amountDifference // Guest already paid original amount, only owes the difference
+          : oldBalance + amountDifference;
+
+      // 11. Update folio
+      const adjustmentNoteEs = `\n[Ajuste de cargo] ${new Date().toLocaleDateString('es-ES')} - Monto anterior: S/ ${currentAmount.toFixed(2)}, Nuevo monto: S/ ${newAmount.toFixed(2)}, Diferencia: +S/ ${amountDifference.toFixed(2)}`;
+
+      await queryRunner.manager.update(
+        Folio,
+        { id: folio.id },
+        {
+          subtotal: newSubtotal,
+          tax: newTax,
+          total: newFolioTotal,
+          balance: newBalance,
+          status: FolioStatus.OPEN,
+          closedAt: null, // Clear closedAt if was closed
+          notes: (folio.notes || '') + adjustmentNoteEs,
+        },
+      );
+
+      // 12. Update reservation totalAmount
+      await queryRunner.manager.update(
+        Reservation,
+        { id: reservation.id },
+        {
+          totalAmount: newAmount,
+        },
+      );
+
+      await queryRunner.commitTransaction();
+
+      // Return updated reservation
+      return await this.findByPublicId(publicId, tenantId);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
    * Generates a unique folio number in format: FOL-YYYY-XXXXX
    * @param queryRunner - QueryRunner instance for transaction context
    * @param tenantId - Tenant ID for scoping
