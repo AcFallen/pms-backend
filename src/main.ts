@@ -31,7 +31,30 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  // Configure CORS for production and development
+  const corsOptions = {
+    origin: (origin: string | undefined, callback: any) => {
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://alojaya.pe',
+        'https://www.alojaya.pe',
+      ];
+
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 200,
+  };
+
+  app.enableCors(corsOptions);
 
   // Apply JWT Auth Guard globally (protects all routes by default)
   app.useGlobalGuards(new JwtAuthGuard(reflector));
