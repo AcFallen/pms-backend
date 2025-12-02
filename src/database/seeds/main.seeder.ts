@@ -53,16 +53,20 @@ export default class MainSeeder implements Seeder {
 
     console.log('\n🌱 Seeding basic users...');
 
-    // Hash the default password
+    // Hash the default password for non-admin users
     const defaultPassword = 'password123';
     const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
+    // Hash the admin password separately
+    const adminPassword = '@Razonamiento12';
+    const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
 
     // Create basic users for each role
     const users = [
       {
         tenantId: createdTenant.id,
-        email: 'admin@example.com',
-        passwordHash,
+        email: 'acsolutions@alojaya.pe',
+        passwordHash: adminPasswordHash,
         firstName: 'System',
         lastName: 'Admin',
         role: UserRole.ADMIN,
@@ -106,7 +110,10 @@ export default class MainSeeder implements Seeder {
         `   - ${user.email} (${user.role}) - ID: ${user.id}, Public ID: ${user.publicId}`,
       );
     });
-    console.log(`\n📝 Default password for all users: ${defaultPassword}`);
+    console.log(`\n📝 Admin credentials:`);
+    console.log(`   Email: acsolutions@alojaya.pe`);
+    console.log(`   Password: ${adminPassword}`);
+    console.log(`\n📝 Default password for other users: ${defaultPassword}`);
 
     // ========================================
     // PRODUCT CATEGORIES
