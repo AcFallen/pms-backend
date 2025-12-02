@@ -2,21 +2,29 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { CreateTenantDto } from './dto/create-tenant.dto';
+import { CreateTenantWithManagerDto } from './dto/create-tenant-with-manager.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantConfigResponseDto } from './dto/tenant-config-response.dto';
 import { Tenant } from './entities/tenant.entity';
+import { User } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { unlink } from 'fs/promises';
 import { join } from 'path';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantRepository: Repository<Tenant>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
@@ -159,5 +167,112 @@ export class TenantsService {
       checkoutTime: tenant.checkoutTime,
       lateCheckoutFee: tenant.lateCheckoutFee,
     };
+  }
+
+  /**
+   * Creates a new tenant with its first manager user in a single transaction.
+   * This is used for complete tenant onboarding.
+   *
+   * This method:
+   * 1. Validates that tenant email and manager email are unique
+   * 2. Validates that tenant RUC (if provided) is unique
+   * 3. Creates the tenant with all configuration
+   * 4. Creates the first manager user with hashed password
+   * 5. All operations are performed in a transaction for data consistency
+   *
+   * @param dto - CreateTenantWithManagerDto with tenant and manager data
+   * @returns Promise<{ tenant: Tenant; manager: User }> - Created tenant and manager
+   */
+  async createWithManager(
+    dto: CreateTenantWithManagerDto,
+  ): Promise<{ tenant: Tenant; manager: User }> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // 1. Validate RUC uniqueness if provided
+      if (dto.ruc) {
+        const existingTenant = await queryRunner.manager.findOne(Tenant, {
+          where: { ruc: dto.ruc },
+        });
+        if (existingTenant) {
+          throw new ConflictException(
+            `Tenant with RUC ${dto.ruc} already exists`,
+          );
+        }
+      }
+
+      // 2. Validate tenant email uniqueness
+      const existingTenantEmail = await queryRunner.manager.findOne(Tenant, {
+        where: { email: dto.email },
+      });
+      if (existingTenantEmail) {
+        throw new ConflictException(
+          `Tenant with email ${dto.email} already exists`,
+        );
+      }
+
+      // 3. Validate manager email uniqueness (emails are globally unique)
+      const existingManagerEmail = await queryRunner.manager.findOne(User, {
+        where: { email: dto.managerEmail },
+      });
+      if (existingManagerEmail) {
+        throw new ConflictException(
+          `User with email ${dto.managerEmail} already exists`,
+        );
+      }
+
+      // 4. Create tenant
+      const tenant = queryRunner.manager.create(Tenant, {
+        name: dto.name,
+        email: dto.email,
+        ruc: dto.ruc || null,
+        businessName: dto.businessName || null,
+        phone: dto.phone || null,
+        address: dto.address || null,
+        district: dto.district || null,
+        province: dto.province || null,
+        department: dto.department || null,
+        status: dto.status || undefined,
+        plan: dto.plan || undefined,
+        maxRooms: dto.maxRooms || 50,
+        maxInvoicesPerMonth: dto.maxInvoicesPerMonth || 1000,
+        billingMode: dto.billingMode || undefined,
+        checkoutPolicy: dto.checkoutPolicy || undefined,
+        checkoutTime: dto.checkoutTime || null,
+        lateCheckoutFee: dto.lateCheckoutFee || null,
+        taxRate: dto.taxRate || 18.0,
+      });
+
+      const savedTenant = await queryRunner.manager.save(Tenant, tenant);
+
+      // 5. Create manager user
+      const passwordHash = await bcrypt.hash(dto.managerPassword, 10);
+
+      const manager = queryRunner.manager.create(User, {
+        tenantId: savedTenant.id,
+        email: dto.managerEmail,
+        passwordHash,
+        firstName: dto.managerFirstName,
+        lastName: dto.managerLastName,
+        role: UserRole.MANAGER,
+        isActive: true,
+      });
+
+      const savedManager = await queryRunner.manager.save(User, manager);
+
+      await queryRunner.commitTransaction();
+
+      return {
+        tenant: savedTenant,
+        manager: savedManager,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 }

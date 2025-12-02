@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   UseInterceptors,
+  UseGuards,
   UploadedFile,
   ParseFilePipe,
   MaxFileSizeValidator,
@@ -26,6 +27,7 @@ import {
 } from '@nestjs/swagger';
 import { TenantsService } from './tenants.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
+import { CreateTenantWithManagerDto } from './dto/create-tenant-with-manager.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { TenantConfigResponseDto } from './dto/tenant-config-response.dto';
 import { Tenant } from './entities/tenant.entity';
@@ -35,6 +37,7 @@ import {
 } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/enums/user-role.enum';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { multerConfig } from '../common/config/multer.config';
 
 @ApiTags('tenants')
@@ -74,6 +77,53 @@ export class TenantsController {
     @UploadedFile() logo?: Express.Multer.File,
   ) {
     return this.tenantsService.create(createTenantDto, logo);
+  }
+
+  @Post('complete-setup')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create tenant with first manager user (Admin only)',
+    description:
+      'Creates a new complete tenant setup with all configuration and its first manager user in a single transaction. This is the recommended endpoint for tenant onboarding.',
+  })
+  @ApiBody({ type: CreateTenantWithManagerDto })
+  @ApiResponse({
+    status: 201,
+    description: 'Tenant and manager successfully created',
+    schema: {
+      properties: {
+        tenant: { $ref: '#/components/schemas/Tenant' },
+        manager: {
+          type: 'object',
+          properties: {
+            publicId: { type: 'string', format: 'uuid' },
+            email: { type: 'string' },
+            firstName: { type: 'string' },
+            lastName: { type: 'string' },
+            role: { type: 'string', example: 'manager' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (invalid email, weak password, etc.)',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Tenant email, RUC, or manager email already exists',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - Admin role required',
+  })
+  createTenantWithManager(
+    @Body() dto: CreateTenantWithManagerDto,
+  ) {
+    return this.tenantsService.createWithManager(dto);
   }
 
   @Get('me')
