@@ -40,191 +40,127 @@ export class DashboardService {
     filters: DashboardFiltersDto,
   ): Promise<DashboardMetricsDto> {
     // TODO: Remove static values after UI is ready
-    // STATIC VALUES FOR DASHBOARD MOCKING
+
+    const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    // Determine date range: use filters if provided, otherwise use current month
+    let monthStart: Date;
+    let monthEnd: Date;
+
+    if (filters.startDate && filters.endDate) {
+      // Use provided date range
+      monthStart = new Date(filters.startDate);
+      monthStart.setHours(0, 0, 0, 0);
+
+      monthEnd = new Date(filters.endDate);
+      monthEnd.setHours(23, 59, 59, 999);
+    } else if (filters.startDate) {
+      // Only start date provided, use it as start and end of that month
+      const startDate = new Date(filters.startDate);
+      monthStart = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      monthEnd = new Date(
+        startDate.getFullYear(),
+        startDate.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+    } else if (filters.endDate) {
+      // Only end date provided, use first day of that month to end date
+      const endDate = new Date(filters.endDate);
+      monthStart = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+      monthEnd = new Date(filters.endDate);
+      monthEnd.setHours(23, 59, 59, 999);
+    } else {
+      // No filters, use current month
+      monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    }
+
+    // 1. Número de check-ins hoy (reservas que hicieron check-in hoy, independientemente del estado actual)
+    const checkInsToday = await this.reservationRepository.count({
+      where: {
+        tenantId,
+        checkInTime: Between(todayStart, todayEnd),
+      },
+    });
+
+    // 2. Ingresos por método de pago (del mes actual)
+    const incomeByPaymentMethod = await this.getIncomeByPaymentMethod(
+      tenantId,
+      monthStart,
+      monthEnd,
+    );
+
+    // 3. Ingresos declarados a SUNAT vs no declarados
+    const sunatComparison = await this.getSunatComparison(
+      tenantId,
+      monthStart,
+      monthEnd,
+    );
+
+    // 4. Ingresos por tipo de habitación
+    const incomeByRoomType = await this.getIncomeByRoomType(
+      tenantId,
+      monthStart,
+      monthEnd,
+    );
+
+    // 5. Documentos generados este mes
+    const documentsGenerated = await this.invoiceRepository.count({
+      where: {
+        tenantId,
+        createdAt: Between(monthStart, monthEnd),
+        status: InvoiceStatus.ACCEPTED,
+      },
+    });
+
+    // 6. Facturas declaradas a SUNAT pero pagadas en efectivo
+    const cashInvoices = await this.getCashInvoices(
+      tenantId,
+      monthStart,
+      monthEnd,
+    );
+
+    // 7. Ventas del POS (walk-ins sin reserva)
+    const posWalkInSales = await this.getPosWalkInSales(
+      tenantId,
+      monthStart,
+      monthEnd,
+    );
+
+    // 8. Últimas 5 reservas con check-in (CHECKED_IN)
+    const recentCheckIns = await this.getRecentReservations(
+      tenantId,
+      ReservationStatus.CHECKED_IN,
+      5,
+    );
+
+    // 9. Últimas 5 reservas con check-out (CHECKED_OUT)
+    const recentCheckOuts = await this.getRecentReservations(
+      tenantId,
+      ReservationStatus.CHECKED_OUT,
+      5,
+    );
+
     return {
-      checkInsToday: 5,
-      incomeByPaymentMethod: [
-        { paymentMethod: PaymentMethod.CASH, totalIncome: 2500.0 },
-        { paymentMethod: PaymentMethod.CARD, totalIncome: 1800.0 },
-        { paymentMethod: PaymentMethod.TRANSFER, totalIncome: 950.0 },
-        { paymentMethod: PaymentMethod.YAPE, totalIncome: 450.0 },
-        { paymentMethod: PaymentMethod.PLIN, totalIncome: 300.0 },
-      ],
-      sunatComparison: {
-        declaredToSunat: 4200.0,
-        notDeclared: 1200.0,
-        declarationPercentage: 77.78,
-      },
-      incomeByRoomType: [
-        {
-          roomTypePublicId: '550e8400-e29b-41d4-a716-446655440001',
-          roomTypeName: 'Suite',
-          totalIncome: 2800.0,
-        },
-        {
-          roomTypePublicId: '550e8400-e29b-41d4-a716-446655440002',
-          roomTypeName: 'Doble',
-          totalIncome: 1950.0,
-        },
-        {
-          roomTypePublicId: '550e8400-e29b-41d4-a716-446655440003',
-          roomTypeName: 'Matrimonial',
-          totalIncome: 1650.0,
-        },
-      ],
-      documentsGenerated: 12,
-      cashInvoices: {
-        totalCashInvoiced: 1850.5,
-        count: 5,
-      },
-      posWalkInSales: {
-        totalPosIncome: 650.0,
-        transactionCount: 18,
-      },
-      recentCheckIns: [
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440100',
-          reservationCode: 'RES-2025-001',
-          roomNumber: '301',
-          roomTypeName: 'Suite',
-          checkInTime: new Date('2025-12-03T14:30:00'),
-          checkOutTime: null,
-          guest: {
-            firstName: 'Juan',
-            lastName: 'García',
-            documentNumber: '12345678',
-            phone: '+51987654321',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440101',
-          reservationCode: 'RES-2025-002',
-          roomNumber: '203',
-          roomTypeName: 'Doble',
-          checkInTime: new Date('2025-12-03T13:45:00'),
-          checkOutTime: null,
-          guest: {
-            firstName: 'María',
-            lastName: 'López',
-            documentNumber: '87654321',
-            phone: '+51987654322',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440102',
-          reservationCode: 'RES-2025-003',
-          roomNumber: '105',
-          roomTypeName: 'Matrimonial',
-          checkInTime: new Date('2025-12-03T11:20:00'),
-          checkOutTime: null,
-          guest: {
-            firstName: 'Carlos',
-            lastName: 'Rodríguez',
-            documentNumber: '11223344',
-            phone: '+51987654323',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440103',
-          reservationCode: 'RES-2025-004',
-          roomNumber: '204',
-          roomTypeName: 'Doble',
-          checkInTime: new Date('2025-12-02T15:10:00'),
-          checkOutTime: null,
-          guest: {
-            firstName: 'Ana',
-            lastName: 'Martínez',
-            documentNumber: '55667788',
-            phone: '+51987654324',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440104',
-          reservationCode: 'RES-2025-005',
-          roomNumber: '302',
-          roomTypeName: 'Suite',
-          checkInTime: new Date('2025-12-02T12:30:00'),
-          checkOutTime: null,
-          guest: {
-            firstName: 'Pedro',
-            lastName: 'Sánchez',
-            documentNumber: '99887766',
-            phone: '+51987654325',
-          },
-        },
-      ],
-      recentCheckOuts: [
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440200',
-          reservationCode: 'RES-2025-101',
-          roomNumber: '401',
-          roomTypeName: 'Matrimonial',
-          checkInTime: new Date('2025-12-01T16:00:00'),
-          checkOutTime: new Date('2025-12-03T10:30:00'),
-          guest: {
-            firstName: 'Laura',
-            lastName: 'Fernández',
-            documentNumber: '44556677',
-            phone: '+51987654326',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440201',
-          reservationCode: 'RES-2025-102',
-          roomNumber: '102',
-          roomTypeName: 'Doble',
-          checkInTime: new Date('2025-12-01T14:15:00'),
-          checkOutTime: new Date('2025-12-03T09:45:00'),
-          guest: {
-            firstName: 'Roberto',
-            lastName: 'Torres',
-            documentNumber: '22334455',
-            phone: '+51987654327',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440202',
-          reservationCode: 'RES-2025-103',
-          roomNumber: '303',
-          roomTypeName: 'Suite',
-          checkInTime: new Date('2025-11-30T18:20:00'),
-          checkOutTime: new Date('2025-12-03T08:00:00'),
-          guest: {
-            firstName: 'Sofía',
-            lastName: 'Gómez',
-            documentNumber: '77889900',
-            phone: '+51987654328',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440203',
-          reservationCode: 'RES-2025-104',
-          roomNumber: '201',
-          roomTypeName: 'Doble',
-          checkInTime: new Date('2025-11-30T13:45:00'),
-          checkOutTime: new Date('2025-12-02T11:15:00'),
-          guest: {
-            firstName: 'Francisco',
-            lastName: 'Diaz',
-            documentNumber: '33445566',
-            phone: '+51987654329',
-          },
-        },
-        {
-          publicId: '550e8400-e29b-41d4-a716-446655440204',
-          reservationCode: 'RES-2025-105',
-          roomNumber: '402',
-          roomTypeName: 'Matrimonial',
-          checkInTime: new Date('2025-11-29T17:30:00'),
-          checkOutTime: new Date('2025-12-02T10:00:00'),
-          guest: {
-            firstName: 'Elena',
-            lastName: 'Castro',
-            documentNumber: '88990011',
-            phone: '+51987654330',
-          },
-        },
-      ],
+      checkInsToday,
+      incomeByPaymentMethod,
+      sunatComparison,
+      incomeByRoomType,
+      documentsGenerated,
+      cashInvoices,
+      posWalkInSales,
+      recentCheckIns,
+      recentCheckOuts,
     };
   }
 
@@ -359,7 +295,11 @@ export class DashboardService {
 
     // Calcular la proporción de efectivo para cada factura
     for (const invoice of invoices) {
-      if (!invoice.folio || !invoice.folio.payments || invoice.folio.payments.length === 0) {
+      if (
+        !invoice.folio ||
+        !invoice.folio.payments ||
+        invoice.folio.payments.length === 0
+      ) {
         continue;
       }
 
@@ -372,12 +312,16 @@ export class DashboardService {
       // Calcular el total de pagos en efectivo
       const cashPayments = invoice.folio.payments
         .filter((payment) => payment.paymentMethod === PaymentMethod.CASH)
-        .reduce((sum, payment) => sum + parseFloat(payment.amount.toString()), 0);
+        .reduce(
+          (sum, payment) => sum + parseFloat(payment.amount.toString()),
+          0,
+        );
 
       // Si hubo pagos en efectivo, calcular la proporción del monto facturado
       if (cashPayments > 0 && totalPayments > 0) {
         const cashProportion = cashPayments / totalPayments;
-        const cashInvoiceAmount = parseFloat(invoice.total.toString()) * cashProportion;
+        const cashInvoiceAmount =
+          parseFloat(invoice.total.toString()) * cashProportion;
         totalCashInvoiced += cashInvoiceAmount;
         countInvoicesWithCash++;
       }
