@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Not as NotEqual } from 'typeorm';
 import { CreateCleaningTaskDto } from './dto/create-cleaning-task.dto';
 import { CleaningTask } from './entities/cleaning-task.entity';
 import { TaskStatus } from './enums/task-status.enum';
@@ -36,7 +36,7 @@ export class CleaningTasksService {
 
   async findAll(tenantId: number): Promise<CleaningTask[]> {
     return await this.cleaningTaskRepository.find({
-      where: { tenantId },
+      where: { tenantId, status: NotEqual(TaskStatus.COMPLETED) },
       relations: ['room', 'assignedUser'],
       order: { priority: 'DESC', createdAt: 'DESC' },
     });
