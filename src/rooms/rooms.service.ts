@@ -141,17 +141,6 @@ export class RoomsService {
   ): Promise<Room> {
     const room = await this.findByPublicId(publicId, tenantId);
 
-    // If room type is being updated, find it by public ID
-    if (updateRoomDto.roomTypePublicId) {
-      const roomType = await this.roomTypeRepository.findOne({
-        where: { publicId: updateRoomDto.roomTypePublicId, tenantId },
-      });
-      if (!roomType) {
-        throw new NotFoundException('Room type not found');
-      }
-      room.roomTypeId = roomType.id;
-    }
-
     // Check if room number is being updated and if it already exists
     if (
       updateRoomDto.roomNumber &&
@@ -167,10 +156,29 @@ export class RoomsService {
       }
     }
 
-    // Update other fields (excluding roomTypePublicId as we already handled it)
+    // Update other fields (excluding roomTypePublicId)
     const { roomTypePublicId, ...updateData } = updateRoomDto;
     Object.assign(room, updateData);
-    return await this.roomRepository.save(room);
+
+    // If room type is being updated, find it by public ID and update roomTypeId
+    if (roomTypePublicId) {
+      const roomType = await this.roomTypeRepository.findOne({
+        where: { publicId: roomTypePublicId, tenantId },
+      });
+      if (!roomType) {
+        throw new NotFoundException('Room type not found');
+      }
+      room.roomTypeId = roomType.id;
+    }
+
+    // Clear the loaded relation to force TypeORM to update roomTypeId
+    // TypeORM ignores changes to roomTypeId when the relation is already loaded
+    (room as any).roomType = undefined;
+
+    await this.roomRepository.save(room);
+
+    // Reload the room with updated relations
+    return await this.findByPublicId(publicId, tenantId);
   }
 
   async removeByPublicId(publicId: string, tenantId: number): Promise<void> {
