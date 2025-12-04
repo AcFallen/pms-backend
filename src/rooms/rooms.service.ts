@@ -112,6 +112,57 @@ export class RoomsService {
     });
   }
 
+  async findGroupedByFloor(tenantId: number): Promise<{
+    [floor: number]: Array<{
+      publicId: string;
+      roomType: { publicId: string; name: string };
+      roomNumber: string;
+      floor: number | null;
+      status: string;
+      cleaningStatus: string;
+    }>;
+  }> {
+    const rooms = await this.roomRepository.find({
+      where: { tenantId },
+      relations: ['roomType'],
+      order: { floor: 'ASC', roomNumber: 'ASC' },
+    });
+
+    // Group rooms by floor
+    const groupedRooms: {
+      [floor: number]: Array<{
+        publicId: string;
+        roomType: { publicId: string; name: string };
+        roomNumber: string;
+        floor: number | null;
+        status: string;
+        cleaningStatus: string;
+      }>;
+    } = {};
+
+    rooms.forEach((room) => {
+      const floor = room.floor ?? 0; // Use 0 for null floors (sin piso asignado)
+
+      if (!groupedRooms[floor]) {
+        groupedRooms[floor] = [];
+      }
+
+      groupedRooms[floor].push({
+        publicId: room.publicId,
+        roomType: {
+          publicId: room.roomType.publicId,
+          name: room.roomType.name,
+        },
+        roomNumber: room.roomNumber,
+        floor: room.floor,
+        status: room.status,
+        cleaningStatus: room.cleaningStatus,
+      });
+    });
+
+    return groupedRooms;
+  }
+
   async findOne(id: number, tenantId: number): Promise<Room> {
     const room = await this.roomRepository.findOne({
       where: { id, tenantId },

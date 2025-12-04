@@ -95,6 +95,79 @@ export class RoomsController {
     return this.roomsService.findAvailableAndClean(user.tenantId);
   }
 
+  @Get('grouped-by-floor')
+  @ApiOperation({
+    summary: 'Get rooms grouped by floor',
+    description:
+      'Retrieves all rooms for the authenticated tenant grouped by floor number. Useful for maintenance module views. Rooms without a floor are grouped under floor 0.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Rooms grouped by floor number',
+    schema: {
+      type: 'object',
+      additionalProperties: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/Room' },
+      },
+      example: {
+        0: [
+          {
+            publicId: '123e4567-e89b-12d3-a456-426614174000',
+            roomType: {
+              publicId: 'c834851b-b771-4a5a-ac7d-d8dfab87eecc',
+              name: 'Simple',
+            },
+            roomNumber: '001',
+            floor: null,
+            status: 'available',
+            cleaningStatus: 'clean',
+          },
+        ],
+        1: [
+          {
+            publicId: '123e4567-e89b-12d3-a456-426614174001',
+            roomType: {
+              publicId: 'c834851b-b771-4a5a-ac7d-d8dfab87eecc',
+              name: 'Matrimonial',
+            },
+            roomNumber: '101',
+            floor: 1,
+            status: 'available',
+            cleaningStatus: 'clean',
+          },
+          {
+            publicId: '123e4567-e89b-12d3-a456-426614174002',
+            roomType: {
+              publicId: 'c834851b-b771-4a5a-ac7d-d8dfab87eecc',
+              name: 'Matrimonial',
+            },
+            roomNumber: '102',
+            floor: 1,
+            status: 'occupied',
+            cleaningStatus: 'dirty',
+          },
+        ],
+        2: [
+          {
+            publicId: '123e4567-e89b-12d3-a456-426614174003',
+            roomType: {
+              publicId: 'c834851b-b771-4a5a-ac7d-d8dfab87eecc',
+              name: 'Doble',
+            },
+            roomNumber: '201',
+            floor: 2,
+            status: 'available',
+            cleaningStatus: 'clean',
+          },
+        ],
+      },
+    },
+  })
+  findGroupedByFloor(@CurrentUser() user: CurrentUserData) {
+    return this.roomsService.findGroupedByFloor(user.tenantId);
+  }
+
   @Get('calendar-sidebar')
   @ApiOperation({
     summary: 'Get rooms for calendar sidebar with filters',
