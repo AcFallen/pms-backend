@@ -281,12 +281,15 @@ export class ReservationsService {
 
       await queryRunner.manager.save(FolioCharge, folioCharge);
 
-      // Update room status to OCCUPIED if checking in with assigned room
+      // Update room status to OCCUPIED and cleaningStatus to DIRTY if checking in with assigned room
       if (savedReservation.status === ReservationStatus.CHECKED_IN && roomId) {
         await queryRunner.manager.update(
           Room,
           { id: roomId, tenantId },
-          { status: RoomStatus.OCCUPIED },
+          {
+            status: RoomStatus.OCCUPIED,
+            cleaningStatus: CleaningStatus.DIRTY,
+          },
         );
       }
 

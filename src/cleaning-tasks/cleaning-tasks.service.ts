@@ -9,6 +9,7 @@ import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { Room } from '../rooms/entities/room.entity';
 import { User } from '../users/entities/user.entity';
 import { CleaningStatus } from '../rooms/enums/cleaning-status.enum';
+import { RoomStatus } from '../rooms/enums/room-status.enum';
 
 @Injectable()
 export class CleaningTasksService {
@@ -85,7 +86,19 @@ export class CleaningTasksService {
     cleaningTask.assignedTo = userId;
     cleaningTask.startedAt = new Date();
 
-    return await this.cleaningTaskRepository.save(cleaningTask);
+    const savedTask = await this.cleaningTaskRepository.save(cleaningTask);
+
+    // Update room status to MAINTENANCE
+    const room = await this.roomRepository.findOne({
+      where: { id: cleaningTask.roomId },
+    });
+
+    if (room) {
+      room.status = RoomStatus.MAINTENANCE;
+      await this.roomRepository.save(room);
+    }
+
+    return savedTask;
   }
 
   /**
