@@ -39,6 +39,7 @@ async function bootstrap() {
         'http://localhost:3001',
         'https://alojaya.pe',
         'https://www.alojaya.pe',
+        '*'
       ];
 
       // Allow requests with no origin (like mobile apps or curl requests)
@@ -54,7 +55,7 @@ async function bootstrap() {
     optionsSuccessStatus: 200,
   };
 
-  app.enableCors(corsOptions);
+  app.enableCors();
 
   // Apply JWT Auth Guard globally (protects all routes by default)
   app.useGlobalGuards(new JwtAuthGuard(reflector));

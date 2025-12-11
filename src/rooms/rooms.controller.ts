@@ -122,6 +122,7 @@ export class RoomsController {
             floor: null,
             status: 'available',
             cleaningStatus: 'clean',
+            cleaningTaskPublicId: null,
           },
         ],
         1: [
@@ -135,6 +136,7 @@ export class RoomsController {
             floor: 1,
             status: 'available',
             cleaningStatus: 'clean',
+            cleaningTaskPublicId: null,
           },
           {
             publicId: '123e4567-e89b-12d3-a456-426614174002',
@@ -146,6 +148,7 @@ export class RoomsController {
             floor: 1,
             status: 'occupied',
             cleaningStatus: 'dirty',
+            cleaningTaskPublicId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
           },
         ],
         2: [
@@ -159,6 +162,7 @@ export class RoomsController {
             floor: 2,
             status: 'available',
             cleaningStatus: 'clean',
+            cleaningTaskPublicId: null,
           },
         ],
       },

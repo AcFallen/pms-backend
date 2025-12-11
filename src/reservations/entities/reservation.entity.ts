@@ -70,7 +70,7 @@ export class Reservation {
   @OneToMany(() => Folio, (folio) => folio.reservation)
   folios: Folio[];
 
-  @Column({ type: 'varchar', length: 20, unique: true, nullable: false })
+  @Column({ type: 'varchar', length: 20, nullable: false })
   reservationCode: string;
 
   @Column({

@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { FilterRoomsDto } from './dto/filter-rooms.dto';
@@ -12,6 +12,8 @@ import { Room } from './entities/room.entity';
 import { RoomType } from '../room-types/entities/room-type.entity';
 import { RoomStatus } from './enums/room-status.enum';
 import { CleaningStatus } from './enums/cleaning-status.enum';
+import { CleaningTask } from '../cleaning-tasks/entities/cleaning-task.entity';
+import { TaskStatus } from '../cleaning-tasks/enums/task-status.enum';
 
 @Injectable()
 export class RoomsService {
@@ -20,6 +22,8 @@ export class RoomsService {
     private readonly roomRepository: Repository<Room>,
     @InjectRepository(RoomType)
     private readonly roomTypeRepository: Repository<RoomType>,
+    @InjectRepository(CleaningTask)
+    private readonly cleaningTaskRepository: Repository<CleaningTask>,
   ) {}
 
   async create(createRoomDto: CreateRoomDto, tenantId: number): Promise<Room> {
@@ -120,12 +124,32 @@ export class RoomsService {
       floor: number | null;
       status: string;
       cleaningStatus: string;
+      cleaningTaskPublicId: string | null;
     }>;
   }> {
     const rooms = await this.roomRepository.find({
       where: { tenantId },
       relations: ['roomType'],
       order: { floor: 'ASC', roomNumber: 'ASC' },
+    });
+
+    // Get all room IDs
+    const roomIds = rooms.map((room) => room.id);
+
+    // Find all cleaning tasks that are pending or in_progress for these rooms
+    const cleaningTasks = await this.cleaningTaskRepository.find({
+      where: {
+        tenantId,
+        roomId: In(roomIds),
+        status: In([TaskStatus.PENDING, TaskStatus.IN_PROGRESS]),
+      },
+      select: ['roomId', 'publicId'],
+    });
+
+    // Create a map of roomId -> cleaningTask publicId
+    const cleaningTaskMap = new Map<number, string>();
+    cleaningTasks.forEach((task) => {
+      cleaningTaskMap.set(task.roomId, task.publicId);
     });
 
     // Group rooms by floor
@@ -137,6 +161,7 @@ export class RoomsService {
         floor: number | null;
         status: string;
         cleaningStatus: string;
+        cleaningTaskPublicId: string | null;
       }>;
     } = {};
 
@@ -157,6 +182,7 @@ export class RoomsService {
         floor: room.floor,
         status: room.status,
         cleaningStatus: room.cleaningStatus,
+        cleaningTaskPublicId: cleaningTaskMap.get(room.id) || null,
       });
     });
 

@@ -124,7 +124,15 @@ export class CleaningTasksService {
       );
     }
 
-    // Update room cleaning status to CLEAN
+    // Update room cleaning status to CLEAN and status to AVAILABLE
+    // Only change status to AVAILABLE if it's currently MAINTENANCE or OCCUPIED
+    // Don't change if it's BLOCKED (manual block by admin)
+    if (
+      room.status === RoomStatus.MAINTENANCE ||
+      room.status === RoomStatus.OCCUPIED
+    ) {
+      room.status = RoomStatus.AVAILABLE;
+    }
     room.cleaningStatus = CleaningStatus.CLEAN;
     await this.roomRepository.save(room);
 
